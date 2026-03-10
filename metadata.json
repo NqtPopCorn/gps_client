@@ -1,0 +1,8 @@
+{
+  "name": "Audio Tour Guide",
+  "description": "Multilingual audio tour guide application with map, QR scanning, and automated playback.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
