@@ -1,4 +1,4 @@
-import { Home, QrCode, Clock, User } from "lucide-react";
+import { Compass, MapPin, QrCode, Clock, User } from "lucide-react";
 import { Screen } from "../types";
 
 interface BottomNavProps {
@@ -8,7 +8,8 @@ interface BottomNavProps {
 
 export function BottomNav({ currentScreen, onNavigate }: BottomNavProps) {
   const tabs = [
-    { id: "home", icon: Home, label: "Home" },
+    { id: "home", icon: Compass, label: "Tours" },
+    { id: "places", icon: MapPin, label: "Places" },
     { id: "scan", icon: QrCode, label: "Scan" },
     { id: "history", icon: Clock, label: "History" },
     { id: "profile", icon: User, label: "Profile" },

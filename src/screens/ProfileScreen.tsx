@@ -8,12 +8,30 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-export function ProfileScreen() {
+interface ProfileScreenProps {
+  onNavigateToSettings?: () => void;
+}
+
+export function ProfileScreen({ onNavigateToSettings }: ProfileScreenProps) {
   const menuItems = [
-    { icon: Download, label: "Offline Audio", value: "1.2 GB" },
-    { icon: CreditCard, label: "Payment Methods", value: "" },
-    { icon: Moon, label: "Dark Mode", value: "Off" },
-    { icon: Settings, label: "Settings", value: "" },
+    {
+      icon: Download,
+      label: "Offline Audio",
+      value: "1.2 GB",
+      onClick: undefined,
+    },
+    {
+      icon: CreditCard,
+      label: "Payment Methods",
+      value: "",
+      onClick: undefined,
+    },
+    {
+      icon: Settings,
+      label: "Settings",
+      value: "",
+      onClick: onNavigateToSettings,
+    },
   ];
 
   return (
@@ -35,9 +53,13 @@ export function ProfileScreen() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           {menuItems.map((item, index) => (
-            <div
+            <button
               key={index}
-              className={`flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors ${index !== menuItems.length - 1 ? "border-b border-gray-100" : ""}`}
+              onClick={item.onClick}
+              disabled={!item.onClick}
+              className={`w-full flex items-center justify-between p-4 ${
+                index !== menuItems.length - 1 ? "border-b border-gray-100" : ""
+              } ${item.onClick ? "hover:bg-gray-50 cursor-pointer" : "cursor-default"} transition-colors`}
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gray-50 rounded-lg text-gray-600">
@@ -51,7 +73,7 @@ export function ProfileScreen() {
                 )}
                 <ChevronRight size={16} className="text-gray-400" />
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
