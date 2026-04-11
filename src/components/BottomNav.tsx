@@ -1,9 +1,10 @@
 import { Compass, MapPin, QrCode, Clock, User } from "lucide-react";
-import { Screen } from "../types";
+
+// export type Screen = "home" | "places" | "scan" | "history" | "profile";
 
 interface BottomNavProps {
-  currentScreen: Screen;
-  onNavigate: (screen: Screen) => void;
+  currentScreen: string;
+  onNavigate: (screen: string) => void;
 }
 
 export function BottomNav({ currentScreen, onNavigate }: BottomNavProps) {
@@ -23,7 +24,7 @@ export function BottomNav({ currentScreen, onNavigate }: BottomNavProps) {
         return (
           <button
             key={tab.id}
-            onClick={() => onNavigate(tab.id as Screen)}
+            onClick={() => onNavigate(tab.id)}
             className={`flex flex-col items-center gap-1 ${isActive ? "text-indigo-600" : "text-gray-400 hover:text-gray-600"}`}
           >
             <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />

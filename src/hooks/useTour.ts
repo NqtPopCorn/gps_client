@@ -1,20 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { tourPublicService } from "../services/tour.service";
-import type {
-  Tour,
-  TourDetail,
-  PaginationParams,
-  LangCode,
-  PaginatedData,
-} from "../types/api.types";
+import type { PaginationParams, LangCode } from "../types/api.types";
+import { useSettings } from "../contexts/SettingsContext";
 
 // ─── useTourList ──────────────────────────────────────────────────────────────
-
-interface UseTourListState {
-  data: PaginatedData<Tour> | null;
-  loading: boolean;
-  error: string | null;
-}
 
 /**
  * Fetch a paginated list of tours.
@@ -24,42 +13,28 @@ interface UseTourListState {
  * // data.results → Tour[]
  * // data.total, data.totalPage for pagination UI
  */
-export function useTourList(params?: PaginationParams & { name: string }) {
-  const [state, setState] = useState<UseTourListState>({
-    data: null,
-    loading: false,
-    error: null,
+export function useTourList(
+  params?: PaginationParams & { name?: string; lang?: LangCode },
+) {
+  const { settings } = useSettings();
+  const query = useQuery({
+    queryKey: ["tour", "list", params?.page, params?.limit, settings.language],
+    queryFn: async () => {
+      const res = await tourPublicService.list(params);
+      return res.data;
+    },
+    retry: false,
   });
 
-  const fetchData = useCallback(async () => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      const res = await tourPublicService.list(params);
-      setState({ data: res.data, loading: false, error: null });
-    } catch (err) {
-      setState({
-        data: null,
-        loading: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params?.page, params?.limit]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { ...state, refetch: fetchData };
+  return {
+    data: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error ? (query.error as Error).message : null,
+    refetch: query.refetch,
+  };
 }
 
 // ─── useTourDetail ────────────────────────────────────────────────────────────
-
-interface UseTourDetailState {
-  data: TourDetail | null;
-  loading: boolean;
-  error: string | null;
-}
 
 /**
  * Fetch a single tour with its ordered POI list, localized to the given language.
@@ -68,31 +43,21 @@ interface UseTourDetailState {
  * const { data, loading, error } = useTourDetail("tour-id", "vi");
  * // data.pois → TourPointDetailInline[]  (ordered by position)
  */
-export function useTourDetail(id: string | null, lang: LangCode) {
-  const [state, setState] = useState<UseTourDetailState>({
-    data: null,
-    loading: false,
-    error: null,
+export function useTourDetail(id: string | null | undefined, lang: LangCode) {
+  const query = useQuery({
+    queryKey: ["tour", "detail", id, lang],
+    queryFn: async () => {
+      const res = await tourPublicService.getById(id!, lang);
+      return res.data;
+    },
+    enabled: !!id,
+    retry: false,
   });
 
-  const fetchData = useCallback(async () => {
-    if (!id) return;
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      const res = await tourPublicService.getById(id, lang);
-      setState({ data: res.data, loading: false, error: null });
-    } catch (err) {
-      setState({
-        data: null,
-        loading: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-  }, [id, lang]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { ...state, refetch: fetchData };
+  return {
+    data: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error ? (query.error as Error).message : null,
+    refetch: query.refetch,
+  };
 }

@@ -14,7 +14,7 @@ interface SettingsContextType {
   resetSettings: () => void;
 }
 
-const DEFAULT_SETTINGS: Settings = {
+let DEFAULT_SETTINGS: Settings = {
   autoPlayAudio: true,
   darkMode: false,
   highAccuracyGPS: true,
@@ -27,23 +27,33 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
   undefined,
 );
 
+const savedSettings = localStorage.getItem(STORAGE_KEY);
+if (savedSettings) {
+  try {
+    const parsed = JSON.parse(savedSettings);
+    DEFAULT_SETTINGS = parsed;
+  } catch (error) {
+    console.error("Failed to parse settings:", error);
+  }
+}
+
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   // Load settings from localStorage on mount
-  useEffect(() => {
-    const savedSettings = localStorage.getItem(STORAGE_KEY);
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-      } catch (error) {
-        console.error("Failed to parse settings:", error);
-      }
-    }
-  }, []);
+  // useEffect(() => {
+  //   const savedSettings = localStorage.getItem(STORAGE_KEY);
+  //   if (savedSettings) {
+  //     try {
+  //       const parsed = JSON.parse(savedSettings);
+  //       setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+  //     } catch (error) {
+  //       console.error("Failed to parse settings:", error);
+  //     }
+  //   }
+  // }, []);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {

@@ -2,32 +2,32 @@ import { ChevronLeft, Play, Navigation, Map, Loader2 } from "lucide-react";
 import { useTourDetail } from "../hooks/useTour"; // Điều chỉnh lại đường dẫn
 import type { Tour, TourDetail, LangCode } from "../types/api.types"; // Điều chỉnh lại đường dẫn
 import { useSettings } from "../contexts/SettingsContext";
+import { useTourPlayer } from "../contexts/TourPlayerContext";
+import { useNavigate, useParams } from "react-router-dom";
 
-interface TourDetailScreenProps {
-  initialTour: Tour;
-  onBack: () => void;
-  onStartTour: (tour: TourDetail) => void;
-}
-
-export function TourDetailScreen({
-  initialTour,
-  onBack,
-  onStartTour,
-}: TourDetailScreenProps) {
+export function TourDetailScreen() {
   // Gọi API lấy chi tiết tour kèm danh sách POI, tự động dịch theo 'language'
+  const { tourId } = useParams<{ tourId: string }>();
+  const { startTour } = useTourPlayer();
+  const navigate = useNavigate();
   const { settings } = useSettings();
   const {
     data: tourDetail,
     loading,
     error,
-  } = useTourDetail(initialTour.id, settings.language);
+  } = useTourDetail(tourId, settings.language);
+
+  const onStartTour = (tour: TourDetail) => {
+    startTour(tour);
+    navigate("/places");
+  };
 
   return (
     <div className="flex flex-col h-full bg-white relative">
       {/* Nút Back */}
       <div className="absolute top-4 left-4 z-20">
         <button
-          onClick={onBack}
+          onClick={() => navigate(-1)}
           className="bg-white/90 backdrop-blur text-gray-900 p-2 rounded-full shadow-sm hover:bg-white transition-colors"
         >
           <ChevronLeft size={24} />
@@ -38,20 +38,20 @@ export function TourDetailScreen({
       <div className="relative h-64 w-full bg-gray-200 shrink-0">
         <img
           src={
-            initialTour.image ||
+            tourDetail?.image ||
             "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
           }
-          alt={initialTour.name}
+          alt={tourDetail?.name}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute bottom-4 left-4 right-4">
           <h1 className="text-2xl font-bold text-white mb-2 shadow-sm leading-tight">
-            {initialTour.name}
+            {tourDetail?.name}
           </h1>
           <div className="flex items-center gap-1.5 text-white/90 text-sm">
             <Map size={16} />
-            <span>{initialTour.point_count} điểm dừng</span>
+            <span>{tourDetail?.point_count} điểm dừng</span>
           </div>
         </div>
       </div>
@@ -73,7 +73,7 @@ export function TourDetailScreen({
         {/* Mô tả Tour */}
         <div className="px-5 mb-8">
           <p className="text-gray-600 text-[15px] leading-relaxed">
-            {initialTour.description || "Chưa có mô tả cho tour này."}
+            {tourDetail?.description || "Chưa có mô tả cho tour này."}
           </p>
         </div>
 

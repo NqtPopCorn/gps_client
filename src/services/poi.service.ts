@@ -23,9 +23,6 @@ export const poiPublicService = {
     return get<ApiResponse<POI[]>>("/api/pois/search/", { params });
   },
 
-  /**
-   * Get single POI detail in the requested language.
-   */
   getById(id: string, lang: LangCode): Promise<ApiResponse<POI>> {
     return get<ApiResponse<POI>>(`/api/pois/${id}`, { params: { lang } });
   },

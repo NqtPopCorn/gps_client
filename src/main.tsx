@@ -1,8 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
-import { SettingsProvider } from "./contexts/SettingsContext";
-import { TourPlayerProvider } from "./contexts/TourPlayerContext.tsx";
 //@ts-ignore
 import "./index.css";
 //@ts-ignore
@@ -10,11 +8,7 @@ import "leaflet/dist/leaflet.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <SettingsProvider>
-      <TourPlayerProvider>
-        <App />
-      </TourPlayerProvider>
-    </SettingsProvider>
+    <App />
   </StrictMode>,
 );
 

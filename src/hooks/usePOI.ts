@@ -1,82 +1,64 @@
-import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { poiPublicService } from "../services/poi.service";
-import type {
-  POI,
-  NearbyPOIParams,
-  LangCode,
-  SearchPOIParams,
-} from "../types/api.types";
+import type { SearchPOIParams } from "../types/api.types";
 import { useSettings } from "../contexts/SettingsContext";
 
 // ─── usePOIDetail ─────────────────────────────────────────────────────────────
 
-interface UsePOIDetailState {
-  data: POI | null;
-  loading: boolean;
-  error: string | null;
-}
-
 export function usePOIDetail(id: string | null) {
-  const [state, setState] = useState<UsePOIDetailState>({
-    data: null,
-    loading: false,
-    error: null,
-  });
   const { settings } = useSettings();
 
-  const fetchData = useCallback(async () => {
-    if (!id) return;
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      const res = await poiPublicService.getById(id, settings.language);
-      setState({ data: res.data, loading: false, error: null });
-    } catch (err) {
-      setState({
-        data: null,
-        loading: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-  }, [id, settings]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { ...state, refetch: fetchData };
+  return useQuery({
+    queryKey: ["poi", "detail", id, settings.language],
+    queryFn: async () => {
+      const res = await poiPublicService.getById(id!, settings.language);
+      return res.data;
+    },
+    enabled: !!id,
+    retry: false,
+  });
 }
 
-interface UseSearchPOIsState {
-  data: POI[];
-  loading: boolean;
-  error: string | null;
-}
+// ─── useSearchPOI ─────────────────────────────────────────────────────────────
+
 export function useSearchPOI(name?: string) {
-  const [state, setState] = useState<UseSearchPOIsState>({
-    data: [],
-    loading: false,
-    error: null,
-  });
   const { settings } = useSettings();
 
-  const fetchData = useCallback(async () => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-    try {
+  const query = useQuery({
+    queryKey: ["poi", "search", name, settings.language],
+    queryFn: async () => {
       const params: SearchPOIParams = { lang: settings.language, name };
       const res = await poiPublicService.searchPOI(params);
-      setState({ data: res.data, loading: false, error: null });
-    } catch (err) {
-      setState({
-        data: [],
-        loading: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-  }, [name, settings]);
+      return res.data;
+    },
+    retry: false,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { ...state, refetch: fetchData };
+  return {
+    data: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error ? (query.error as Error).message : null,
+    refetch: query.refetch,
+  };
 }
+
+// export function useNearbyPOI(name?: string) {
+//   const { settings } = useSettings();
+
+//   const query = useQuery({
+//     queryKey: ["poi", "search", name, settings.language],
+//     queryFn: async () => {
+//       const params: SearchPOIParams = { lang: settings.language, name };
+//       const res = await poiPublicService.(params);
+//       return res.data;
+//     },
+//     retry: false,
+//   });
+
+//   return {
+//     data: query.data ?? [],
+//     loading: query.isLoading,
+//     error: query.error ? (query.error as Error).message : null,
+//     refetch: query.refetch,
+//   };
+// }

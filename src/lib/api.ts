@@ -50,6 +50,7 @@ api.interceptors.response.use(
       // Redirect to login without hard reload
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
+    console.error(error);
     return Promise.reject(buildApiError(error));
   },
 );

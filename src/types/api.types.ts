@@ -53,6 +53,41 @@ export interface PaginationParams {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Auth
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  /** Minimum 8 characters */
+  password: string;
+}
+
+export interface UserResponse {
+  id: string;
+  email: string;
+  role: string;
+  date_joined: string;
+  is_active: boolean;
+}
+
+export interface LoginData {
+  access_token: string;
+  token_type: string;
+  user: UserResponse;
+}
+
+export interface LoginResponse {
+  status: number;
+  message: string;
+  data: LoginData;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POI – Public
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -70,6 +105,7 @@ export interface POI {
   distance: number;
   /** ISO language codes for which a localization exists. Read-only. */
   supported_languages: string[];
+  radius: number;
 }
 
 export interface NearbyPOIParams {
@@ -136,4 +172,19 @@ export interface Tour {
 export interface TourDetail extends Tour {
   /** Ordered list of tour points with embedded POI data. Read-only. */
   pois: TourPointDetailInline[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// History
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HistoryResponse {
+  poi: POI;
+  // ISO timestamp
+  created_at: string;
+}
+
+export interface LogHistoryRequest {
+  poi_id: string;
+  // user_id: string;
 }

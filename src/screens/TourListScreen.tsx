@@ -3,14 +3,12 @@ import { Search, MapPin, Globe, Loader2, Map } from "lucide-react";
 import { useTourList } from "../hooks/useTour"; // Điều chỉnh lại đường dẫn nếu cần
 import { type Tour, type LangCode, LANGUAGES } from "../types/api.types"; // Điều chỉnh lại đường dẫn
 import { useSettings } from "../contexts/SettingsContext";
+import { useNavigate } from "react-router-dom";
 
-interface TourListScreenProps {
-  onSelectTour: (tour: Tour) => void;
-}
-
-export function TourListScreen({ onSelectTour }: TourListScreenProps) {
+export function TourListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const { settings, updateSettings } = useSettings();
+  const navigate = useNavigate();
 
   // Gọi API lấy danh sách Tour
   const { data, loading, error } = useTourList();
@@ -45,7 +43,9 @@ export function TourListScreen({ onSelectTour }: TourListScreenProps) {
               className="bg-transparent text-sm font-medium text-gray-700 outline-none"
             >
               {(Object.keys(LANGUAGES) as LangCode[]).map((code) => (
-                <option value={code}>{LANGUAGES[code]}</option>
+                <option key={code} value={code}>
+                  {LANGUAGES[code]}
+                </option>
               ))}
             </select>
           </div>
@@ -79,7 +79,7 @@ export function TourListScreen({ onSelectTour }: TourListScreenProps) {
           filteredTours.map((tour) => (
             <button
               key={tour.id}
-              onClick={() => onSelectTour(tour)}
+              onClick={() => navigate(`/tours/${tour.id}`)}
               className="w-full bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow text-left group border border-gray-100"
             >
               <div className="relative h-40 w-full overflow-hidden bg-gray-200">

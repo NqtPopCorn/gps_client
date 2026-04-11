@@ -22,7 +22,7 @@ export function POIDetailScreen() {
   const { settings } = useSettings();
 
   // Lấy dữ liệu POI từ API (giả định hook dùng slug hoặc id đều được)
-  const { data: poi, loading, error } = usePOIDetail(slug || null);
+  const { data: poi, isLoading, error } = usePOIDetail(slug || null);
 
   // Móc nối với Global Audio Player
   const {
@@ -37,7 +37,7 @@ export function POIDetailScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
 
   // Xử lý UI Đang tải hoặc Lỗi
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-indigo-600" size={32} />
@@ -49,7 +49,7 @@ export function POIDetailScreen() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 bg-gray-50 text-center">
         <p className="text-gray-600 mb-4">
-          {error || "Không tìm thấy thông tin địa điểm."}
+          {error?.message || "Không tìm thấy thông tin địa điểm."}
         </p>
         <button
           onClick={() => navigate(-1)}

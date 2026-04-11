@@ -3,11 +3,7 @@ import { useSettings } from "../contexts/SettingsContext";
 import { type LangCode } from "../types";
 import { LANGUAGES } from "../types/api.types";
 
-interface SettingsScreenProps {
-  onBack: () => void;
-}
-
-export function SettingsScreen({ onBack }: SettingsScreenProps) {
+export function SettingsScreen() {
   const { settings, updateSettings } = useSettings();
 
   const handleToggle = (key: keyof typeof settings) => {
@@ -45,17 +41,6 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="px-6 pt-4 pb-6 bg-white shadow-sm z-10 flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-      </div>
-
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {/* Toggles */}
