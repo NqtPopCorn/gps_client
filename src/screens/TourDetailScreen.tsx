@@ -3,23 +3,34 @@ import { useTourDetail } from "../hooks/useTour"; // Điều chỉnh lại đư�
 import type { Tour, TourDetail, LangCode } from "../types/api.types"; // Điều chỉnh lại đường dẫn
 import { useSettings } from "../contexts/SettingsContext";
 import { useTourPlayer } from "../contexts/TourPlayerContext";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useI18n } from "../contexts/I18nContext";
+import { tourPublicService } from "../services/tour.service";
+import { toast } from "react-toastify";
 
 export function TourDetailScreen() {
   // Gọi API lấy chi tiết tour kèm danh sách POI, tự động dịch theo 'language'
   const { tourId } = useParams<{ tourId: string }>();
   const { startTour } = useTourPlayer();
   const navigate = useNavigate();
-  const { settings } = useSettings();
-  const {
-    data: tourDetail,
-    loading,
-    error,
-  } = useTourDetail(tourId, settings.language);
+  const [searchParams] = useSearchParams();
+  const { t } = useI18n();
+  const { data: tourDetail, loading, error } = useTourDetail(tourId);
 
   const onStartTour = (tour: TourDetail) => {
-    startTour(tour);
-    navigate("/places");
+    const code = searchParams.get("code");
+    if (!code) {
+      toast.error(t("tourDetail.activationCodeMissing"));
+      return;
+    }
+    // goi API validate
+    tourPublicService.activateTour(tour.id, code).then((response) => {
+      const { data } = response;
+      if (data) {
+        startTour(tour);
+        navigate("/places");
+      }
+    });
   };
 
   return (
@@ -51,7 +62,11 @@ export function TourDetailScreen() {
           </h1>
           <div className="flex items-center gap-1.5 text-white/90 text-sm">
             <Map size={16} />
-            <span>{tourDetail?.point_count} điểm dừng</span>
+            <span>
+              {t("tourList.pointsLabel", {
+                count: tourDetail?.point_count ?? 0,
+              })}
+            </span>
           </div>
         </div>
       </div>
@@ -66,14 +81,16 @@ export function TourDetailScreen() {
             className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
           >
             <Play size={20} className="fill-white" />
-            {loading ? "Đang tải dữ liệu..." : "Bắt đầu Tour"}
+            {loading
+              ? t("tourDetail.startButtonLoading")
+              : t("tourDetail.startButton")}
           </button>
         </div>
 
         {/* Mô tả Tour */}
         <div className="px-5 mb-8">
           <p className="text-gray-600 text-[15px] leading-relaxed">
-            {tourDetail?.description || "Chưa có mô tả cho tour này."}
+            {tourDetail?.description || t("tourDetail.descriptionFallback")}
           </p>
         </div>
 
@@ -81,7 +98,7 @@ export function TourDetailScreen() {
         <div className="px-5">
           <h3 className="font-bold text-lg text-gray-900 mb-6 flex items-center gap-2">
             <Navigation size={18} className="text-indigo-600" />
-            Lộ trình Tour
+            {t("tourDetail.routeTitle")}
           </h3>
 
           {loading ? (
@@ -89,7 +106,7 @@ export function TourDetailScreen() {
               <Loader2 className="animate-spin text-gray-400" size={24} />
             </div>
           ) : error ? (
-            <p className="text-red-500 text-sm">{error}</p>
+            <p className="text-red-500 text-sm">{t("tourDetail.error")}</p>
           ) : tourDetail?.pois && tourDetail.pois.length > 0 ? (
             <div className="relative border-l-2 border-dashed border-gray-200 ml-3 pb-4">
               {tourDetail.pois.map((item, index) => {
@@ -120,7 +137,7 @@ export function TourDetailScreen() {
             </div>
           ) : (
             <p className="text-gray-500 text-sm italic">
-              Tour này hiện chưa có điểm dừng nào.
+              {t("tourDetail.routeEmpty")}
             </p>
           )}
         </div>

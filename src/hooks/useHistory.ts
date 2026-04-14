@@ -1,15 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { historyService } from "../services/history.service"; // Điều chỉnh đường dẫn
 import { LangCode, LogHistoryRequest } from "../types"; // Điều chỉnh đường dẫn
+import { useSettings } from "../contexts/SettingsContext";
 
 // ─── useHistoryList ───────────────────────────────────────────────────────────
 
 /**
  * Fetch danh sách lịch sử địa điểm đã đến
  */
-export function useHistoryList(lang: LangCode) {
+export function useHistoryList() {
+  const { settings } = useSettings();
+  const lang = settings.language || "en";
   return useQuery({
-    queryKey: ["history", "list"],
+    queryKey: ["history", "list", lang],
     queryFn: async () => {
       const res = await historyService.getHistory(lang);
       return res.data; // Trả về mảng HistoryResponse[]

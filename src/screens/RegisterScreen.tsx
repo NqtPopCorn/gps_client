@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useI18n } from "../contexts/I18nContext";
 
 export function RegisterScreen() {
   const navigate = useNavigate();
   const { register, login, isLoading, error } = useAuth();
+  const { t } = useI18n();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,27 +49,23 @@ export function RegisterScreen() {
             <UserPlus size={32} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Tạo tài khoản
+            {t("auth.register.title")}
           </h1>
-          <p className="text-gray-500 text-sm">
-            Bắt đầu khám phá các địa điểm thú vị
-          </p>
+          <p className="text-gray-500 text-sm">{t("auth.register.subtitle")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Lỗi từ Form (Client) hoặc từ API (Server) */}
           {(validationError || error) && (
             <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-sm text-center">
-              {validationError ||
-                error ||
-                "Đăng ký thất bại. Vui lòng thử lại."}
+              {validationError || error || t("auth.register.error")}
             </div>
           )}
 
           {/* Email Input */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 ml-1">
-              Email
+              {t("auth.register.emailLabel")}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -87,7 +85,7 @@ export function RegisterScreen() {
           {/* Password Input */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 ml-1">
-              Mật khẩu
+              {t("auth.register.passwordLabel")}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -99,7 +97,7 @@ export function RegisterScreen() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-gray-900"
-                placeholder="Tối thiểu 8 ký tự"
+                placeholder={t("auth.register.passwordHint")}
               />
               <button
                 type="button"
@@ -114,7 +112,7 @@ export function RegisterScreen() {
           {/* Confirm Password Input */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 ml-1">
-              Xác nhận mật khẩu
+              {t("auth.register.confirmPasswordLabel")}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -126,7 +124,7 @@ export function RegisterScreen() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-gray-900"
-                placeholder="Nhập lại mật khẩu"
+                placeholder={t("auth.register.confirmPasswordLabel")}
               />
             </div>
           </div>
@@ -140,18 +138,18 @@ export function RegisterScreen() {
             {isLoading ? (
               <Loader2 size={20} className="animate-spin" />
             ) : (
-              "Đăng Ký"
+              t("auth.register.submit")
             )}
           </button>
         </form>
 
         <p className="text-center text-sm text-gray-500 mt-8">
-          Đã có tài khoản?{" "}
+          {t("auth.register.cta")}{" "}
           <Link
             to="/login"
             className="font-semibold text-indigo-600 hover:underline"
           >
-            Đăng nhập
+            {t("auth.register.ctaAction")}
           </Link>
         </p>
       </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, use } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -25,6 +25,7 @@ import { NavLink } from "react-router-dom";
 import { useTourPlayer } from "../contexts/TourPlayerContext";
 import { blueIcon } from "../lib/leafletIcon";
 import { useSettings } from "../contexts/SettingsContext";
+import { useI18n } from "../contexts/I18nContext";
 // Import hook lấy vị trí người dùng từ location.ts
 import { useCurrentLocation } from "../lib/location";
 
@@ -74,19 +75,25 @@ function MapController({ selectedPoi }: { selectedPoi: POI | null }) {
 }
 
 // Component xử lý bay về vị trí người dùng
-function UserLocationController({
+function LocationController({
   userCoords,
+  poiCoords,
   flyTrigger,
 }: {
   userCoords: { lat: number; lng: number } | null;
+  poiCoords: { lat: number; lng: number } | null;
   flyTrigger: number;
 }) {
   const map = useMap();
   useEffect(() => {
-    if (userCoords && flyTrigger > 0) {
+    if (poiCoords && flyTrigger == 1) {
+      map.flyTo([poiCoords.lat, poiCoords.lng], 16, {
+        duration: 0.8,
+      });
+    } else if (userCoords && flyTrigger > 1) {
       map.flyTo([userCoords.lat, userCoords.lng], 16, { duration: 1 });
     }
-  }, [userCoords, flyTrigger, map]);
+  }, [flyTrigger]);
   return null;
 }
 
@@ -96,6 +103,7 @@ export function PlacesScreen() {
   const [selectedPoi, setSelectedPoi] = useState<POI | null>(null);
   const [flyToUserTrigger, setFlyToUserTrigger] = useState(0); // Trigger để gọi map.flyTo
   const { settings, updateSettings } = useSettings();
+  const { t } = useI18n();
 
   // Lấy vị trí người dùng (polling mỗi 10s hoặc khi cần thiết tùy hook của bạn)
   const { coords: userLocation, loading: isLocating } = useCurrentLocation({
@@ -111,8 +119,15 @@ export function PlacesScreen() {
     togglePlayPause,
     startTour,
   } = useTourPlayer();
+  const currentTourPoi = currentTour?.pois[currentPoiIndex]?.poi || null;
 
   const center: [number, number] = [10.776889, 106.695305];
+
+  useEffect(() => {
+    if (userLocation) {
+      setFlyToUserTrigger((prev) => prev + 1);
+    }
+  }, [userLocation]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 500);
@@ -146,9 +161,14 @@ export function PlacesScreen() {
 
   const formatDistance = (distanceInMeters: number | undefined) => {
     if (distanceInMeters === undefined || distanceInMeters === null)
-      return "Gần bạn";
-    if (distanceInMeters < 1000) return `${Math.round(distanceInMeters)} m`;
-    return `${(distanceInMeters / 1000).toFixed(1)} km`;
+      return t("places.distance.nearby");
+    if (distanceInMeters < 1000)
+      return t("places.distance.meters", {
+        value: Math.round(distanceInMeters),
+      });
+    return t("places.distance.kilometers", {
+      value: (distanceInMeters / 1000).toFixed(1),
+    });
   };
 
   const handleLocateMe = () => {
@@ -160,7 +180,9 @@ export function PlacesScreen() {
       {/* Header & Search Layer */}
       <div className="px-4 py-4 bg-white relative z-50 shadow-sm">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Bản đồ</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {t("places.title")}
+          </h1>
           <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
             <Globe size={16} className="text-gray-500" />
             <select
@@ -186,7 +208,7 @@ export function PlacesScreen() {
           />
           <input
             type="text"
-            placeholder="Tìm kiếm địa điểm..."
+            placeholder={t("places.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-gray-100 rounded-xl py-2.5 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
@@ -215,10 +237,18 @@ export function PlacesScreen() {
           <MapController selectedPoi={selectedPoi} />
 
           {/* Component điều khiển bay về vị trí người dùng */}
-          <UserLocationController
+          <LocationController
             userCoords={
               userLocation
                 ? { lat: userLocation.latitude, lng: userLocation.longitude }
+                : null
+            }
+            poiCoords={
+              currentTourPoi
+                ? {
+                    lat: currentTourPoi.latitude,
+                    lng: currentTourPoi.longitude,
+                  }
                 : null
             }
             flyTrigger={flyToUserTrigger}
@@ -231,7 +261,7 @@ export function PlacesScreen() {
               icon={userLocationIcon}
               zIndexOffset={2000} // Cực cao để luôn nổi lên trên
             >
-              <Popup>Bạn đang ở đây</Popup>
+              <Popup>{t("places.location.youAreHere")}</Popup>
             </Marker>
           )}
 
@@ -303,7 +333,7 @@ export function PlacesScreen() {
                         </h3>
                         <NavLink to={"/poi/" + poi.slug}>
                           <span className="w-full block text-center bg-indigo-600 text-white text-xs py-2 mt-3 rounded-lg font-medium hover:bg-indigo-700">
-                            Xem chi tiết
+                            {t("places.popup.button")}
                           </span>
                         </NavLink>
                       </div>
@@ -318,7 +348,7 @@ export function PlacesScreen() {
         {/* Nút bấm nổi "Định vị vị trí của tôi" */}
         <button
           onClick={handleLocateMe}
-          className="absolute bottom-40 right-4 z-1000 bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-indigo-600 focus:outline-none transition-all active:scale-95 border border-gray-100"
+          className="absolute bottom-45 right-4 z-1000 bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-indigo-600 focus:outline-none transition-all active:scale-95 border border-gray-100"
           title="Đến vị trí hiện tại"
         >
           {isLocating ? (

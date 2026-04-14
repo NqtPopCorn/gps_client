@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useI18n } from "../contexts/I18nContext";
 
 export function LoginScreen() {
   const navigate = useNavigate();
   const { login, isLoading, error } = useAuth();
+  const { t } = useI18n();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,26 +31,23 @@ export function LoginScreen() {
             <LogIn size={32} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Chào mừng trở lại!
+            {t("auth.login.title")}
           </h1>
-          <p className="text-gray-500 text-sm">
-            Đăng nhập để tiếp tục hành trình của bạn
-          </p>
+          <p className="text-gray-500 text-sm">{t("auth.login.subtitle")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Thông báo lỗi */}
           {error && (
             <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-sm text-center">
-              {error.message ||
-                "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin."}
+              {error || t("auth.login.error")}
             </div>
           )}
 
           {/* Email Input */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 ml-1">
-              Email
+              {t("auth.login.emailLabel")}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -68,7 +67,7 @@ export function LoginScreen() {
           {/* Password Input */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700 ml-1">
-              Mật khẩu
+              {t("auth.login.passwordLabel")}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -101,18 +100,18 @@ export function LoginScreen() {
             {isLoading ? (
               <Loader2 size={20} className="animate-spin" />
             ) : (
-              "Đăng Nhập"
+              t("auth.login.submit")
             )}
           </button>
         </form>
 
         <p className="text-center text-sm text-gray-500 mt-8">
-          Chưa có tài khoản?{" "}
+          {t("auth.login.cta")}{" "}
           <Link
             to="/register"
             className="font-semibold text-indigo-600 hover:underline"
           >
-            Đăng ký ngay
+            {t("auth.login.ctaAction")}
           </Link>
         </p>
       </div>

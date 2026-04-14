@@ -7,6 +7,7 @@ import type {
   LangCode,
   ApiResponse,
   PaginatedResponse,
+  TourActivationResponse,
 } from "../types/api.types";
 
 // ─── Public Tour endpoints ────────────────────────────────────────────────────
@@ -26,5 +27,15 @@ export const tourPublicService = {
     return get<ApiResponse<TourDetail>>(`/api/tours/${id}`, {
       params: { lang },
     });
+  },
+
+  activateTour(
+    tourId: string,
+    code: string,
+  ): Promise<ApiResponse<TourActivationResponse>> {
+    return get<ApiResponse<TourActivationResponse>>(
+      `/api/tours/${tourId}/activate/`,
+      { params: { code } },
+    );
   },
 };

@@ -25,6 +25,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { useSettings } from "../contexts/SettingsContext";
 import { LANGUAGES, LANG_FLAGS, type LangCode } from "../types/api.types";
+import { useI18n } from "../contexts/I18nContext";
 
 // ─── Auth Modal ───────────────────────────────────────────────────────────────
 
@@ -289,19 +290,22 @@ export function ProfileScreen() {
   const { settings, updateSettings, resetSettings } = useSettings();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { t } = useI18n();
 
   return (
     <>
       <div className="flex flex-col h-full bg-gray-50">
         {/* Header */}
         <div className="px-6 pt-6 pb-5 bg-white shadow-sm shrink-0">
-          <h1 className="text-2xl font-bold text-gray-900">Hồ sơ & Cài đặt</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {t("profile.title")}
+          </h1>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pt-5 pb-8 space-y-5">
           {/* ══ SECTION 1: Tài khoản ════════════════════════════════════════ */}
           <div>
-            <SectionLabel>Tài khoản</SectionLabel>
+            <SectionLabel>{t("profile.sections.account")}</SectionLabel>
             <Card>
               {isAuthenticated && user ? (
                 <>
@@ -319,7 +323,9 @@ export function ProfileScreen() {
                       </p>
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-500 px-2 py-1 rounded-lg shrink-0">
-                      {user.role === "admin" ? "Admin" : "Member"}
+                      {user.role === "admin"
+                        ? t("profile.account.role.admin")
+                        : t("profile.account.role.member")}
                     </span>
                   </div>
 
@@ -327,17 +333,17 @@ export function ProfileScreen() {
                   {[
                     {
                       icon: Download,
-                      label: "Audio đã tải offline",
+                      label: t("profile.account.downloads"),
                       value: "1.2 GB",
                     },
                     {
                       icon: CreditCard,
-                      label: "Phương thức thanh toán",
+                      label: t("profile.account.billing"),
                       value: "",
                     },
                     {
                       icon: ShieldCheck,
-                      label: "Bảo mật tài khoản",
+                      label: t("profile.account.security"),
                       value: "",
                     },
                   ].map(({ icon: Icon, label, value }) => (
@@ -370,9 +376,11 @@ export function ProfileScreen() {
                       <User size={20} className="text-gray-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-gray-700">Khách</p>
+                      <p className="text-sm font-bold text-gray-700">
+                        {t("profile.guest.title")}
+                      </p>
                       <p className="text-xs text-gray-400">
-                        Đăng nhập để lưu hành trình
+                        {t("profile.guest.subtitle")}
                       </p>
                     </div>
                   </div>
@@ -381,13 +389,13 @@ export function ProfileScreen() {
                       onClick={() => setShowAuthModal(true)}
                       className="flex-1 bg-indigo-600 text-white text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200"
                     >
-                      <LogIn size={15} /> Đăng nhập
+                      <LogIn size={15} /> {t("profile.guest.login")}
                     </button>
                     <button
                       onClick={() => setShowAuthModal(true)}
                       className="flex-1 bg-white text-indigo-600 text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5 border-2 border-indigo-100 hover:bg-indigo-50 transition-colors"
                     >
-                      <UserPlus size={15} /> Đăng ký
+                      <UserPlus size={15} /> {t("profile.guest.register")}
                     </button>
                   </div>
                 </div>
@@ -397,7 +405,7 @@ export function ProfileScreen() {
 
           {/* ══ SECTION 2: Ngôn ngữ ═════════════════════════════════════════ */}
           <div>
-            <SectionLabel>Ngôn ngữ nội dung</SectionLabel>
+            <SectionLabel>{t("profile.sections.language")}</SectionLabel>
             <Card>
               <div className="px-4 py-4">
                 <div className="flex items-center gap-2.5 mb-3">
@@ -405,7 +413,7 @@ export function ProfileScreen() {
                     <Globe size={17} className="text-blue-500" />
                   </div>
                   <p className="text-sm font-semibold text-gray-900">
-                    Ngôn ngữ hiển thị thuyết minh
+                    {t("profile.language.title")}
                   </p>
                 </div>
                 <div className="grid grid-cols-5 gap-1.5">
@@ -434,14 +442,14 @@ export function ProfileScreen() {
 
           {/* ══ SECTION 3: Phát lại & GPS ═══════════════════════════════════ */}
           <div>
-            <SectionLabel>Phát lại & GPS</SectionLabel>
+            <SectionLabel>{t("profile.sections.playback")}</SectionLabel>
             <Card>
               <ToggleRow
                 icon={Volume2}
                 iconBg="bg-green-50"
                 iconColor="text-green-500"
-                label="Tự động phát Audio"
-                description="Phát thuyết minh khi bước vào bán kính địa điểm"
+                label={t("settings.items.autoPlay.title")}
+                description={t("settings.items.autoPlay.description")}
                 checked={settings.autoPlayAudio}
                 onChange={() =>
                   updateSettings({ autoPlayAudio: !settings.autoPlayAudio })
@@ -451,8 +459,8 @@ export function ProfileScreen() {
                 icon={Zap}
                 iconBg="bg-amber-50"
                 iconColor="text-amber-500"
-                label="GPS độ chính xác cao"
-                description="Định vị chính xác hơn, tiêu hao pin nhiều hơn"
+                label={t("settings.items.gps.title")}
+                description={t("settings.items.gps.description")}
                 checked={settings.highAccuracyGPS}
                 onChange={() =>
                   updateSettings({ highAccuracyGPS: !settings.highAccuracyGPS })
@@ -463,14 +471,14 @@ export function ProfileScreen() {
 
           {/* ══ SECTION 4: Giao diện ════════════════════════════════════════ */}
           <div>
-            <SectionLabel>Giao diện</SectionLabel>
+            <SectionLabel>{t("profile.sections.interface")}</SectionLabel>
             <Card>
               <ToggleRow
                 icon={Moon}
                 iconBg="bg-slate-100"
                 iconColor="text-slate-400"
-                label="Chế độ tối"
-                description="Sắp ra mắt"
+                label={t("settings.items.darkMode.title")}
+                description={t("settings.items.darkMode.description")}
                 checked={settings.darkMode}
                 onChange={() =>
                   updateSettings({ darkMode: !settings.darkMode })
@@ -482,7 +490,7 @@ export function ProfileScreen() {
 
           {/* ══ SECTION 5: Ứng dụng ═════════════════════════════════════════ */}
           <div>
-            <SectionLabel>Ứng dụng</SectionLabel>
+            <SectionLabel>{t("profile.sections.app")}</SectionLabel>
             <Card>
               <button
                 onClick={resetSettings}
@@ -493,10 +501,10 @@ export function ProfileScreen() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-800">
-                    Đặt lại cài đặt
+                    {t("profile.app.reset")}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Khôi phục tất cả về mặc định ban đầu
+                    {t("profile.app.resetDescription")}
                   </p>
                 </div>
               </button>
@@ -506,10 +514,7 @@ export function ProfileScreen() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-800">
-                    Vibe GPS Visitor
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Phiên bản 1.0.0 · © 2024
+                    {t("profile.app.info")}
                   </p>
                 </div>
               </div>
@@ -523,7 +528,7 @@ export function ProfileScreen() {
               className="w-full bg-white text-red-500 font-semibold py-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"
             >
               <LogOut size={17} />
-              Đăng xuất
+              {t("profile.logout")}
             </button>
           )}
         </div>

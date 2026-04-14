@@ -2,9 +2,11 @@ import { ArrowLeft, Volume2, Moon, Zap, Globe } from "lucide-react";
 import { useSettings } from "../contexts/SettingsContext";
 import { type LangCode } from "../types";
 import { LANGUAGES } from "../types/api.types";
+import { useI18n } from "../contexts/I18nContext";
 
 export function SettingsScreen() {
   const { settings, updateSettings } = useSettings();
+  const { t } = useI18n();
 
   const handleToggle = (key: keyof typeof settings) => {
     updateSettings({ [key]: !settings[key] });
@@ -17,22 +19,22 @@ export function SettingsScreen() {
   const settingItems = [
     {
       icon: Volume2,
-      label: "Auto Play Audio",
-      description: "Automatically play audio when entering POI radius",
+      labelKey: "settings.items.autoPlay.title" as const,
+      descriptionKey: "settings.items.autoPlay.description" as const,
       key: "autoPlayAudio" as const,
       type: "toggle",
     },
     {
       icon: Zap,
-      label: "High Precision GPS",
-      description: "Use high accuracy GPS for better location tracking",
+      labelKey: "settings.items.gps.title" as const,
+      descriptionKey: "settings.items.gps.description" as const,
       key: "highAccuracyGPS" as const,
       type: "toggle",
     },
     {
       icon: Moon,
-      label: "Dark Mode",
-      description: "Use dark theme (coming soon)",
+      labelKey: "settings.items.darkMode.title" as const,
+      descriptionKey: "settings.items.darkMode.description" as const,
       key: "darkMode" as const,
       type: "toggle",
       disabled: true,
@@ -46,7 +48,7 @@ export function SettingsScreen() {
         {/* Toggles */}
         <div className="space-y-4 mb-8">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide px-2">
-            Features
+            {t("settings.sections.features")}
           </h2>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             {settingItems.map((item, index) => (
@@ -64,10 +66,10 @@ export function SettingsScreen() {
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">
-                      {item.label}
+                      {t(item.labelKey)}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {item.description}
+                      {t(item.descriptionKey)}
                     </p>
                   </div>
                 </div>
@@ -89,7 +91,7 @@ export function SettingsScreen() {
         {/* Language Selection */}
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide px-2">
-            Language
+            {t("settings.sections.language")}
           </h2>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex items-center gap-3 p-4 border-b border-gray-100">
@@ -97,7 +99,7 @@ export function SettingsScreen() {
                 <Globe size={20} />
               </div>
               <span className="font-semibold text-gray-900 text-sm">
-                Display Language
+                {t("settings.language.display")}
               </span>
             </div>
             {/* Language Options */}
@@ -122,8 +124,8 @@ export function SettingsScreen() {
         {/* About Section */}
         <div className="mt-8 pt-6 border-t border-gray-200">
           <div className="text-center text-xs text-gray-500 space-y-2">
-            <p>Vibe GPS Visitor v1.0.0</p>
-            <p>© 2024 Vibe GPS</p>
+            <p>{t("settings.about.version")}</p>
+            <p>{t("settings.about.copyright")}</p>
           </div>
         </div>
       </div>

@@ -15,11 +15,13 @@ import { usePOIDetail } from "../hooks/usePOI"; // Điều chỉnh đường d�
 import { useTourPlayer } from "../contexts/TourPlayerContext"; // Điều chỉnh đường dẫn
 import type { LangCode } from "../types/api.types"; // Điều chỉnh đường dẫn
 import { useSettings } from "../contexts/SettingsContext";
+import { useI18n } from "../contexts/I18nContext";
 
 export function POIDetailScreen() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { settings } = useSettings();
+  const { t } = useI18n();
 
   // Lấy dữ liệu POI từ API (giả định hook dùng slug hoặc id đều được)
   const { data: poi, isLoading, error } = usePOIDetail(slug || null);
@@ -41,6 +43,7 @@ export function POIDetailScreen() {
     return (
       <div className="flex h-full items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-indigo-600" size={32} />
+        <span className="sr-only">{t("poi.loading")}</span>
       </div>
     );
   }
@@ -48,14 +51,12 @@ export function POIDetailScreen() {
   if (error || !poi) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 bg-gray-50 text-center">
-        <p className="text-gray-600 mb-4">
-          {error?.message || "Không tìm thấy thông tin địa điểm."}
-        </p>
+        <p className="text-gray-600 mb-4">{t("poi.error")}</p>
         <button
           onClick={() => navigate(-1)}
           className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-medium"
         >
-          Quay lại
+          {t("poi.back")}
         </button>
       </div>
     );
@@ -147,7 +148,7 @@ export function POIDetailScreen() {
         </div>
 
         <p className="text-gray-600 text-[15px] leading-relaxed mb-8 whitespace-pre-line">
-          {poi.description || "Chưa có mô tả chi tiết cho địa điểm này."}
+          {poi.description || t("poi.descriptionFallback")}
         </p>
 
         {/* Khung Audio Player nội bộ */}
@@ -155,7 +156,7 @@ export function POIDetailScreen() {
           <div className="bg-gray-50 rounded-2xl p-5 mb-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-gray-900">
-                Thuyết minh Audio
+                {t("poi.audio.title")}
               </h3>
               <span
                 className={`text-xs font-medium px-2 py-1 rounded-md ${
@@ -165,8 +166,8 @@ export function POIDetailScreen() {
                 }`}
               >
                 {isThisPoiActive && globalIsPlaying
-                  ? "Đang phát..."
-                  : "Sẵn sàng"}
+                  ? t("poi.audio.status.playing")
+                  : t("poi.audio.status.ready")}
               </span>
             </div>
 
@@ -216,12 +217,14 @@ export function POIDetailScreen() {
           {displayIsPlaying ? (
             <>
               <Pause size={20} />
-              Tạm dừng
+              {t("poi.buttons.primary.pause")}
             </>
           ) : (
             <>
               <Play size={20} />
-              {poi?.audio ? "Nghe Thuyết Minh" : "Chưa có Audio"}
+              {poi?.audio
+                ? t("poi.buttons.primary.play")
+                : t("poi.audio.unavailable")}
             </>
           )}
         </button>

@@ -1,25 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Clock } from "lucide-react";
+import { useI18n } from "../contexts/I18nContext";
+import type { TranslationKey } from "../i18n/messages";
 
 type Tab = "download" | "history";
 
-const TABS: { id: Tab; label: string; icon: typeof Download }[] = [
-  { id: "history", label: "Lịch sử", icon: Clock },
-  { id: "download", label: "Tải xuống", icon: Download },
+const TABS: { id: Tab; labelKey: TranslationKey; icon: typeof Download }[] = [
+  { id: "history", labelKey: "nav.history", icon: Clock },
+  { id: "download", labelKey: "offline.tabs.download", icon: Download },
 ];
 
 export function OfflineScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("history");
+  const { t } = useI18n();
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* ── Header + Tab Bar ── */}
       <div className="bg-white shadow-sm sticky top-0 z-20 px-5 pt-6 pb-0">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">History</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+          {activeTab === "download"
+            ? t("offline.tabs.download")
+            : t("nav.history")}
+        </h1>
 
         {/* Tab pills */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-          {TABS.map(({ id, label, icon: Icon }) => (
+          {TABS.map(({ id, labelKey, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
@@ -30,7 +37,7 @@ export function OfflineScreen() {
               }`}
             >
               <Icon size={15} />
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </div>
@@ -79,7 +86,6 @@ export function OfflineScreen() {
 
 // ─── Wrapped versions without their own top headers ──────────────────────────
 
-import { useEffect } from "react";
 import {
   Trash2,
   CheckCircle2,
@@ -133,6 +139,7 @@ function StatusBadge({
   status: "downloading" | "done" | "error" | "idle";
   progress: number;
 }) {
+  const { t } = useI18n();
   if (status === "downloading")
     return (
       <span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
@@ -144,14 +151,14 @@ function StatusBadge({
     return (
       <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
         <CheckCircle2 size={12} />
-        Đã tải
+        {t("offline.download.card.status.done")}
       </span>
     );
   if (status === "error")
     return (
       <span className="flex items-center gap-1.5 text-xs font-semibold text-red-500 bg-red-50 px-2.5 py-1 rounded-full">
         <AlertCircle size={12} />
-        Lỗi
+        {t("offline.download.card.status.error")}
       </span>
     );
   return null;
@@ -176,6 +183,7 @@ function TourDownloadCard({
 }) {
   const isDownloading = state.status === "downloading";
   const isDone = state.status === "done";
+  const { t } = useI18n();
 
   return (
     <div
@@ -217,11 +225,13 @@ function TourDownloadCard({
             <StatusBadge status={state.status} progress={state.progress} />
           </div>
           <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-            {tour.description || "Chưa có mô tả."}
+            {tour.description || t("offline.download.card.descriptionFallback")}
           </p>
           <div className="flex items-center gap-1 text-xs font-medium text-indigo-600">
             <Map size={12} />
-            <span>{tour.point_count} điểm dừng</span>
+            <span>
+              {t("tourList.pointsLabel", { count: tour.point_count })}
+            </span>
           </div>
         </div>
       </div>
@@ -242,7 +252,7 @@ function TourDownloadCard({
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
           >
             <Trash2 size={14} />
-            Xóa dữ liệu offline
+            {t("offline.download.card.action.delete")}
           </button>
         ) : (
           <button
@@ -253,17 +263,17 @@ function TourDownloadCard({
             {isDownloading ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
-                Đang tải...
+                {t("offline.download.card.action.downloading")}
               </>
             ) : state.status === "error" ? (
               <>
                 <Download size={14} />
-                Thử lại
+                {t("offline.download.card.action.retry")}
               </>
             ) : (
               <>
                 <Download size={14} />
-                Tải xuống
+                {t("offline.download.card.action.download")}
               </>
             )}
           </button>
@@ -280,6 +290,7 @@ function DownloadPageContent() {
   const { data, loading: listLoading } = useTourList();
   const { downloadTour, removeTour, getState, downloadedMeta } =
     useDownloadManager();
+  const { t } = useI18n();
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showDownloadedOnly, setShowDownloadedOnly] = useState(false);
@@ -329,17 +340,15 @@ function DownloadPageContent() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm text-gray-700">
             <HardDrive size={15} className="text-indigo-500" />
-            <span>
-              <span className="font-bold text-indigo-600">
-                {downloadedCount}
-              </span>{" "}
-              tour đã tải
-            </span>
+            <span className="font-bold text-indigo-600">
+              {downloadedCount}
+            </span>{" "}
+            <span>{t("offline.download.stats.label")}</span>
           </div>
           {isOffline && (
             <span className="flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100">
               <WifiOff size={11} />
-              Offline
+              {t("common.status.offline")}
             </span>
           )}
           <button
@@ -351,7 +360,7 @@ function DownloadPageContent() {
             }`}
           >
             <CheckCircle2 size={11} />
-            Đã tải
+            {t("offline.download.filterButton")}
           </button>
         </div>
       </div>
@@ -360,7 +369,7 @@ function DownloadPageContent() {
         <div className="mx-4 mt-3 p-3 bg-orange-50 border border-orange-100 rounded-xl flex items-start gap-2.5">
           <WifiOff size={15} className="text-orange-500 shrink-0 mt-0.5" />
           <p className="text-xs text-orange-700 leading-relaxed">
-            Bạn đang offline. Chỉ hiển thị tour đã tải xuống.
+            {t("offline.download.offlineNotice")}
           </p>
         </div>
       )}
@@ -402,20 +411,20 @@ function DownloadPageContent() {
             </div>
             <h3 className="font-semibold text-gray-900 mb-1">
               {showDownloadedOnly
-                ? "Chưa có tour nào được tải"
-                : "Không có tour nào"}
+                ? t("offline.download.empty.title.downloadedOnly")
+                : t("offline.download.empty.title.all")}
             </h3>
             <p className="text-sm text-gray-500">
               {showDownloadedOnly
-                ? "Tải tour để có thể xem ở đây."
-                : "Không tìm thấy tour nào từ server."}
+                ? t("offline.download.empty.subtitle.downloadedOnly")
+                : t("offline.download.empty.subtitle.all")}
             </p>
             {showDownloadedOnly && (
               <button
                 onClick={() => setShowDownloadedOnly(false)}
                 className="mt-4 text-sm text-indigo-600 font-medium hover:underline"
               >
-                Xem tất cả tour
+                {t("offline.download.empty.showAll")}
               </button>
             )}
           </div>
@@ -424,7 +433,7 @@ function DownloadPageContent() {
 
       <div className="px-4 py-3 border-t border-gray-100 bg-white">
         <p className="text-xs text-center text-gray-400">
-          Dữ liệu lưu trên thiết bị · Xóa cache trình duyệt để giải phóng bộ nhớ
+          {t("offline.download.footerNote")}
         </p>
       </div>
     </div>
@@ -435,12 +444,8 @@ function DownloadPageContent() {
 
 function HistoryContent() {
   const navigate = useNavigate();
-  const { settings } = useSettings();
-  const {
-    data: historyList,
-    isLoading,
-    error,
-  } = useHistoryList(settings.language);
+  const { data: historyList, isLoading, error } = useHistoryList();
+  const { t } = useI18n();
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString("vi-VN", {
@@ -457,16 +462,20 @@ function HistoryContent() {
         <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-6 shadow-sm">
           <LogIn size={36} />
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Chưa đăng nhập</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">
+          {t("profile.guest.notLoggedIn.title")}
+        </h2>
+
         <p className="text-gray-500 text-sm mb-8 leading-relaxed max-w-xs">
-          Đăng nhập để lưu lại và xem các địa điểm bạn đã khám phá.
+          {t("profile.guest.notLoggedIn.subtitle")}
         </p>
+
         <button
           onClick={() => navigate("/login")}
           className="w-full max-w-xs bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
         >
           <LogIn size={20} />
-          Đến trang Đăng nhập
+          {t("profile.guest.notLoggedIn.cta")}
         </button>
       </div>
     );

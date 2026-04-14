@@ -13,9 +13,7 @@ import { useSettings } from "../contexts/SettingsContext";
  * // data.results → Tour[]
  * // data.total, data.totalPage for pagination UI
  */
-export function useTourList(
-  params?: PaginationParams & { name?: string; lang?: LangCode },
-) {
+export function useTourList(params?: PaginationParams & { name?: string }) {
   const { settings } = useSettings();
   const query = useQuery({
     queryKey: ["tour", "list", params?.page, params?.limit, settings.language],
@@ -43,7 +41,9 @@ export function useTourList(
  * const { data, loading, error } = useTourDetail("tour-id", "vi");
  * // data.pois → TourPointDetailInline[]  (ordered by position)
  */
-export function useTourDetail(id: string | null | undefined, lang: LangCode) {
+export function useTourDetail(id: string | null | undefined) {
+  const { settings } = useSettings();
+  const lang = settings.language || "en";
   const query = useQuery({
     queryKey: ["tour", "detail", id, lang],
     queryFn: async () => {

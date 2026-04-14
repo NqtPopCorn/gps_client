@@ -15,21 +15,19 @@ import { POIDetailScreen } from "./screens/POIDetailScreen";
 import { TourDetailScreen } from "./screens/TourDetailScreen";
 import { ScanScreen } from "./screens/ScanScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
-import { SettingsScreen } from "./screens/SettingsScreen";
-// import { ActivationGuardScreen } from "./screens/ActivationGuardScreen";
 import { BottomNav } from "./components/BottomNav";
-import { LangCode } from "./types";
 import {
   TourPlayerProvider,
   useTourPlayer,
 } from "./contexts/TourPlayerContext";
-import { SettingsProvider, useSettings } from "./contexts/SettingsContext";
+import { SettingsProvider } from "./contexts/SettingsContext";
+import { I18nProvider } from "./contexts/I18nContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LoginScreen } from "./screens/LoginScreen";
 import { RegisterScreen } from "./screens/RegisterScreen";
 import { AuthProvider } from "./contexts/AuthContext";
-// import { DownloadPage } from "./screens/DownloadPage";
 import { OfflineScreen } from "./screens/OfflineScreen";
+import { ToastContainer } from "react-toastify";
 
 function AppContent() {
   const [isActivated, setIsActivated] = useState<boolean>(true);
@@ -76,7 +74,7 @@ function AppContent() {
           <Route path="/register" element={<RegisterScreen />} />
           <Route path="/places" element={<PlacesScreen />} />
           <Route path="/poi/:slug" element={<POIDetailScreen />} />
-          <Route path="/tours/:tourId" element={<TourDetailScreen />} />
+          <Route path="/tour/:tourId" element={<TourDetailScreen />} />
           <Route path="/scan" element={<ScanScreen />} />
           <Route path="/history" element={<OfflineScreen />} />
           <Route path="/profile" element={<ProfileScreen />} />
@@ -112,13 +110,34 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
-        <TourPlayerProvider>
-          <Router>
-            <AuthProvider>
-              <AppContent />
-            </AuthProvider>
-          </Router>
-        </TourPlayerProvider>
+        <I18nProvider>
+          <TourPlayerProvider>
+            <Router>
+              <AuthProvider>
+                <AppContent />
+                <ToastContainer
+                  position="top-center"
+                  autoClose={2500}
+                  hideProgressBar
+                  newestOnTop
+                  closeOnClick
+                  pauseOnFocusLoss={false}
+                  pauseOnHover={false}
+                  draggable
+                  draggablePercent={30}
+                  theme="dark"
+                  toastClassName="!rounded-xl !px-4 !py-3 !text-sm top-4"
+                  style={{
+                    width: "100%",
+                    maxWidth: "420px",
+                    margin: "0 auto",
+                    top: "env(safe-area-inset-top)", // 🔥 tránh notch iPhone
+                  }}
+                />
+              </AuthProvider>
+            </Router>
+          </TourPlayerProvider>
+        </I18nProvider>
       </SettingsProvider>
     </QueryClientProvider>
   );
