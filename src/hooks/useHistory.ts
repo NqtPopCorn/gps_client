@@ -32,7 +32,9 @@ export function useLogHistory() {
   return useMutation({
     // Hàm thực thi gọi API
     mutationFn: (params: LogHistoryRequest) => {
-      console.log("on add history");
+      if (!params.device_id) {
+        console.warn("Thiếu device_id khi log history");
+      }
       return historyService.logHistory(params);
     },
 

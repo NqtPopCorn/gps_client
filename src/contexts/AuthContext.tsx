@@ -51,6 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = tokenStorage.get();
     if (!token) return;
 
+    // Ensure device_id exists for logging history even if not logged in
+    const device_id = localStorage.getItem("device_id");
+    if (!device_id) {
+      // create fake device id for logging history without login
+      const newDeviceId = `device-${Math.random().toString(36).substring(2, 20)}`;
+      localStorage.setItem("device_id", newDeviceId);
+      return;
+    }
+
     get<{ status: number; data: UserResponse }>("/api/auth/me")
       .then((res) => {
         setState((s) => ({ ...s, user: res.data, isAuthenticated: true }));

@@ -14,7 +14,7 @@ export const historyService = {
   },
 
   logHistory(params: LogHistoryRequest): Promise<ApiResponse<null>> {
-    console.log({ params });
+    console.log("log history", { params });
     return post<ApiResponse<null>>(`/api/history/`, params);
   },
 };

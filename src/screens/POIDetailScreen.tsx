@@ -16,6 +16,7 @@ import { useTourPlayer } from "../contexts/TourPlayerContext"; // Điều chỉn
 import type { LangCode } from "../types/api.types"; // Điều chỉnh đường dẫn
 import { useSettings } from "../contexts/SettingsContext";
 import { useI18n } from "../contexts/I18nContext";
+import { useLogHistory } from "../hooks/useHistory";
 
 export function POIDetailScreen() {
   const { slug } = useParams<{ slug: string }>();
@@ -35,6 +36,7 @@ export function POIDetailScreen() {
     togglePlayPause,
     seekAudio,
   } = useTourPlayer();
+  const logHistory = useLogHistory();
 
   const [isFavorite, setIsFavorite] = useState(false);
 
@@ -75,12 +77,19 @@ export function POIDetailScreen() {
       console.log(poi);
       playStandalonePoi(poi); // Nếu chưa, thì đẩy bài này vào làm bài Lẻ (Interrupt)
     }
+    // Ghi nhận lịch sử nghe nếu bắt đầu phát mới
+    if (!displayIsPlaying) {
+      logHistory.mutate({
+        poi_id: poi.id,
+        device_id: localStorage.getItem("device_id") || "",
+      });
+    }
   };
 
   // Xử lý tua âm thanh
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isThisPoiActive) {
-      playStandalonePoi(poi); // Nếu chưa phát mà bấm tua, thì phát luôn
+      playStandalonePoi(poi);
     }
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;

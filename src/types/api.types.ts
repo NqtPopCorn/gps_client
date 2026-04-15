@@ -193,5 +193,5 @@ export interface HistoryResponse {
 
 export interface LogHistoryRequest {
   poi_id: string;
-  // user_id: string;
+  device_id: string;
 }
