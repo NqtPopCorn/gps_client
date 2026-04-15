@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
 
         // Trỏ đúng vào thư mục và tên file TS của bạn
         srcDir: "src",
-        filename: "lib/serviceWorker.ts",
+        filename: "serviceWorker.ts",
 
         // Tự động update SW khi có phiên bản mới
         registerType: "autoUpdate",
