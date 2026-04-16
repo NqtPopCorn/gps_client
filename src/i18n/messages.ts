@@ -60,6 +60,7 @@ const baseMessages = {
   "places.popup.button": "View details",
   "places.location.youAreHere": "You are here",
   "places.location.locateMe": "Center on my position",
+  "places.filter.currentTour": "Current tour",
 
   "settings.sections.features": "Features",
   "settings.sections.language": "Language",
@@ -145,6 +146,7 @@ const baseMessages = {
   "tourDetail.routeTitle": "Tour itinerary",
   "tourDetail.routeEmpty": "This tour currently has no stops.",
   "tourDetail.error": "Unable to load tour detail",
+  "tourDetail.enterCode": "Enter activation code",
 
   "poi.loading": "Loading point of interest...",
   "poi.error": "We couldn't find this POI.",

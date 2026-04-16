@@ -1,6 +1,15 @@
-import { ChevronLeft, Play, Navigation, Map, Loader2 } from "lucide-react";
-import { useTourDetail } from "../hooks/useTour"; // Điều chỉnh lại đường dẫn
-import type { Tour, TourDetail, LangCode } from "../types/api.types"; // Điều chỉnh lại đường dẫn
+import { useState, useEffect } from "react";
+import {
+  ChevronLeft,
+  Play,
+  Navigation,
+  Map,
+  Loader2,
+  Key, // Thêm icon Key
+  Check, // Thêm icon Check
+} from "lucide-react";
+import { useTourDetail } from "../hooks/useTour";
+import type { TourDetail } from "../types/api.types";
 import { useSettings } from "../contexts/SettingsContext";
 import { useTourPlayer } from "../contexts/TourPlayerContext";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -9,21 +18,49 @@ import { tourPublicService } from "../services/tour.service";
 import { toast } from "react-toastify";
 
 export function TourDetailScreen() {
-  // Gọi API lấy chi tiết tour kèm danh sách POI, tự động dịch theo 'language'
   const { tourId } = useParams<{ tourId: string }>();
   const { startTour } = useTourPlayer();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+
+  // 1. Khởi tạo useSearchParams để lấy và cập nhật URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  const codeFromUrl = searchParams.get("code") || "";
+
   const { t } = useI18n();
   const { data: tourDetail, loading, error } = useTourDetail(tourId);
 
+  // 2. State quản lý giao diện nhập code
+  const [showCodeInput, setShowCodeInput] = useState(false);
+  const [inputCode, setInputCode] = useState(codeFromUrl);
+
+  // Đồng bộ inputCode nếu URL thay đổi (ví dụ user back/forward trình duyệt)
+  useEffect(() => {
+    setInputCode(codeFromUrl);
+  }, [codeFromUrl]);
+
+  // 3. Xử lý khi nhấn nút Lưu code
+  const handleApplyCode = () => {
+    if (inputCode.trim()) {
+      setSearchParams({ code: inputCode.trim() });
+      setShowCodeInput(false);
+    } else {
+      searchParams.delete("code");
+      setSearchParams(searchParams);
+      setShowCodeInput(false);
+    }
+  };
+
   const onStartTour = (tour: TourDetail) => {
+    // Lấy code trực tiếp từ search params mới nhất
     const code = searchParams.get("code");
     if (!code) {
-      toast.error(t("tourDetail.activationCodeMissing"));
+      toast.error(
+        t("tourDetail.activationCodeMissing") || "Vui lòng nhập mã kích hoạt!",
+      );
       return;
     }
-    // goi API validate
+
+    // Gọi API validate
     tourPublicService.activateTour(tour.id, code).then((response) => {
       const { data } = response;
       if (data) {
@@ -73,8 +110,41 @@ export function TourDetailScreen() {
 
       {/* Nội dung chi tiết */}
       <div className="flex-1 overflow-y-auto pb-24">
-        {/* Nút Start Tour */}
-        <div className="p-5">
+        {/* Khu vực Nhập Code & Start Tour */}
+        <div className="p-5 flex flex-col gap-4">
+          {/* 4. Giao diện nhập Code */}
+          <div>
+            {!showCodeInput ? (
+              <button
+                onClick={() => setShowCodeInput(true)}
+                className="flex items-center gap-2 text-indigo-600 font-medium text-sm bg-indigo-50 px-4 py-2 rounded-xl w-fit hover:bg-indigo-100 transition-colors"
+              >
+                <Key size={16} />
+                {codeFromUrl
+                  ? `Mã kích hoạt: ${codeFromUrl} (Đổi)`
+                  : t("tourDetail.enterCode") || "Nhập mã kích hoạt"}
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                <input
+                  type="text"
+                  placeholder="Nhập mã của bạn..."
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value)}
+                  className="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 outline-none"
+                  autoFocus
+                />
+                <button
+                  onClick={handleApplyCode}
+                  className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Check size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Nút Start Tour */}
           <button
             onClick={() => tourDetail && onStartTour(tourDetail)}
             disabled={!tourDetail}

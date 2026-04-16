@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, use } from "react";
+import { useState, useEffect } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -13,10 +13,9 @@ import {
   Globe,
   MapPin,
   Loader2,
-  Navigation,
   Play,
   Pause,
-  LocateFixed, // Import thêm icon này
+  LocateFixed,
 } from "lucide-react";
 import L from "leaflet";
 import { useSearchPOI } from "../hooks/usePOI";
@@ -26,13 +25,65 @@ import { useTourPlayer } from "../contexts/TourPlayerContext";
 import { blueIcon } from "../lib/leafletIcon";
 import { useSettings } from "../contexts/SettingsContext";
 import { useI18n } from "../contexts/I18nContext";
-// Import hook lấy vị trí người dùng từ location.ts
 import { useCurrentLocation } from "../lib/location";
 
-// Xóa cấu hình Icon default cũ
+// ─── POI Type Filter Config ────────────────────────────────────────────────
+
+export type POIType =
+  | "food"
+  | "drink"
+  | "museum"
+  | "park"
+  | "historical"
+  | "shopping"
+  | "other";
+
+type TypeConfig = { label: string; emoji: string; activeColor: string };
+
+const POI_TYPE_CONFIG: Record<POIType, TypeConfig> = {
+  food: {
+    label: "Ẩm thực",
+    emoji: "🍜",
+    activeColor: "bg-orange-500 border-orange-500",
+  },
+  drink: {
+    label: "Đồ uống",
+    emoji: "☕",
+    activeColor: "bg-amber-500 border-amber-500",
+  },
+  museum: {
+    label: "Bảo tàng",
+    emoji: "🏛️",
+    activeColor: "bg-purple-500 border-purple-500",
+  },
+  park: {
+    label: "Công viên",
+    emoji: "🌿",
+    activeColor: "bg-green-500 border-green-500",
+  },
+  historical: {
+    label: "Lịch sử",
+    emoji: "🏯",
+    activeColor: "bg-red-500 border-red-500",
+  },
+  shopping: {
+    label: "Mua sắm",
+    emoji: "🛍️",
+    activeColor: "bg-pink-500 border-pink-500",
+  },
+  other: {
+    label: "Khác",
+    emoji: "📍",
+    activeColor: "bg-gray-600 border-gray-600",
+  },
+};
+
+const ALL_POI_TYPES = Object.keys(POI_TYPE_CONFIG) as POIType[];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 
-// 1. Hàm tạo Icon tùy chỉnh cho POI
 const createCustomIcon = (
   tourIndex: number | null,
   isActive: boolean = false,
@@ -53,7 +104,6 @@ const createCustomIcon = (
   }
 };
 
-// 2. Icon cho vị trí người dùng (Blue Dot)
 const userLocationIcon = L.divIcon({
   className: "custom-user-marker",
   html: `<div class="user-location-dot"></div>`,
@@ -61,7 +111,6 @@ const userLocationIcon = L.divIcon({
   iconAnchor: [11, 11],
 });
 
-// Component điều khiển Map
 function MapController({ selectedPoi }: { selectedPoi: POI | null }) {
   const map = useMap();
   useEffect(() => {
@@ -74,7 +123,6 @@ function MapController({ selectedPoi }: { selectedPoi: POI | null }) {
   return null;
 }
 
-// Component xử lý bay về vị trí người dùng
 function LocationController({
   userCoords,
   poiCoords,
@@ -94,6 +142,7 @@ function LocationController({
       map.flyTo([userCoords.lat, userCoords.lng], 16, { duration: 1 });
     }
   }, [flyTrigger]);
+
   return null;
 }
 
@@ -101,11 +150,14 @@ export function PlacesScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedPoi, setSelectedPoi] = useState<POI | null>(null);
-  const [flyToUserTrigger, setFlyToUserTrigger] = useState(0); // Trigger để gọi map.flyTo
+
+  // 1. Chuyển sang Set<string> để hỗ trợ filter "current_tour"
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+
+  const [flyToUserTrigger, setFlyToUserTrigger] = useState(0);
   const { settings, updateSettings } = useSettings();
   const { t } = useI18n();
 
-  // Lấy vị trí người dùng (polling mỗi 10s hoặc khi cần thiết tùy hook của bạn)
   const { coords: userLocation, loading: isLocating } = useCurrentLocation({
     enableHighAccuracy: true,
     maximumAge: 10000,
@@ -139,10 +191,34 @@ export function PlacesScreen() {
 
   const allData: POI[] = allPoisState.data || [];
 
-  const tourPath =
-    currentTour?.pois.map(
-      ({ poi: p }) => [p.latitude, p.longitude] as [number, number],
-    ) || [];
+  // Hàm toggle filter chung
+  const toggleType = (type: string) => {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
+
+  // 2. Logic lọc dữ liệu mới
+  const filteredData: POI[] =
+    selectedTypes.size === 0
+      ? allData
+      : allData.filter((poi) => {
+          const isTourPoi =
+            currentTour?.pois.some((tp) => tp.poi.id === poi.id) ?? false;
+          const hasTourFilter = selectedTypes.has("current_tour");
+          const hasTypeFilter = selectedTypes.has(poi.type);
+
+          // Lấy POI nếu nó thỏa điều kiện filter type HOẶC thỏa điều kiện filter tour hiện tại
+          return hasTypeFilter || (hasTourFilter && isTourPoi);
+        });
+
+  // const tourPath =
+  //   currentTour?.pois.map(
+  //     ({ poi: p }) => [p.latitude, p.longitude] as [number, number],
+  //   ) || [];
 
   useEffect(() => {
     if (currentTour && !standalonePoi) {
@@ -219,6 +295,138 @@ export function PlacesScreen() {
             </div>
           )}
         </div>
+
+        {/* Search Results Overlay */}
+        {debouncedQuery.trim().length > 0 && (
+          <div className="absolute left-4 right-4 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden max-h-80 overflow-y-auto">
+            {searchState.loading ? (
+              <div className="flex items-center justify-center py-8 gap-2 text-gray-500">
+                <Loader2 className="animate-spin" size={18} />
+                <span className="text-sm">Đang tìm kiếm...</span>
+              </div>
+            ) : searchState.error ? (
+              <div className="py-6 text-center text-sm text-red-500 px-4">
+                Lỗi tìm kiếm: {searchState.error}
+              </div>
+            ) : searchState.data && searchState.data.length > 0 ? (
+              <ul>
+                {searchState.data.map((poi, index) => (
+                  <li key={poi.id}>
+                    <button
+                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left ${
+                        index !== searchState.data.length - 1
+                          ? "border-b border-gray-100"
+                          : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedPoi(poi);
+                        setSearchQuery("");
+                        setDebouncedQuery("");
+                      }}
+                    >
+                      <img
+                        src={
+                          poi.image ||
+                          "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400"
+                        }
+                        alt={poi.name}
+                        className="w-12 h-12 rounded-xl object-cover shrink-0"
+                      />
+                      <div className="flex-1 overflow-hidden">
+                        <p className="font-semibold text-gray-900 text-sm truncate">
+                          {poi.name}
+                        </p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MapPin
+                            size={11}
+                            className="text-indigo-400 shrink-0"
+                          />
+                          <span className="text-xs text-gray-500 truncate">
+                            {formatDistance(poi.distance)}
+                          </span>
+                          {poi.type && (
+                            <>
+                              <span className="text-gray-300 text-xs">•</span>
+                              <span className="text-xs text-indigo-600 font-medium uppercase tracking-wide">
+                                {POI_TYPE_CONFIG[poi.type as POIType]?.label ??
+                                  poi.type}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                <Search size={28} className="text-gray-300 mb-2" />
+                <p className="text-sm font-medium text-gray-500">
+                  Không tìm thấy địa điểm nào
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Thử từ khóa khác</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* POI Type Filter Chips */}
+        <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide pb-0.5">
+          {/* 3. Filter Tour Hiện Tại (Chỉ hiện khi có currentTour) */}
+          {currentTour && (
+            <button
+              onClick={() => toggleType("current_tour")}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all active:scale-95 ${
+                selectedTypes.has("current_tour")
+                  ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                  : "bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100"
+              }`}
+            >
+              <span>🗺️</span>
+              <span>{t("places.filter.currentTour") || "Tour hiện tại"}</span>
+              {selectedTypes.has("current_tour") && (
+                <span className="ml-0.5 opacity-80 text-[10px] leading-none">
+                  ✕
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Các filter Type mặc định */}
+          {ALL_POI_TYPES.map((type) => {
+            const cfg = POI_TYPE_CONFIG[type];
+            const isActive = selectedTypes.has(type);
+            return (
+              <button
+                key={type}
+                onClick={() => toggleType(type)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all active:scale-95 ${
+                  isActive
+                    ? `${cfg.activeColor} text-white shadow-sm`
+                    : "bg-gray-100 border-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <span>{cfg.emoji}</span>
+                <span>{cfg.label}</span>
+                {isActive && (
+                  <span className="ml-0.5 opacity-80 text-[10px] leading-none">
+                    ✕
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {selectedTypes.size > 0 && (
+            <button
+              onClick={() => setSelectedTypes(new Set())}
+              className="flex-shrink-0 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-500 hover:bg-gray-50 transition-all"
+            >
+              Xóa lọc
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Map Content Layer */}
@@ -226,7 +434,7 @@ export function PlacesScreen() {
         <MapContainer
           center={center}
           zoom={13}
-          className="h-[calc(100vh-180px)] w-full"
+          className="h-full w-full"
           zoomControl={false}
         >
           <TileLayer
@@ -236,7 +444,6 @@ export function PlacesScreen() {
 
           <MapController selectedPoi={selectedPoi} />
 
-          {/* Component điều khiển bay về vị trí người dùng */}
           <LocationController
             userCoords={
               userLocation
@@ -254,27 +461,26 @@ export function PlacesScreen() {
             flyTrigger={flyToUserTrigger}
           />
 
-          {/* Vẽ Marker vị trí người dùng */}
           {userLocation && (
             <Marker
               position={[userLocation.latitude, userLocation.longitude]}
               icon={userLocationIcon}
-              zIndexOffset={2000} // Cực cao để luôn nổi lên trên
+              zIndexOffset={2000}
             >
               <Popup>{t("places.location.youAreHere")}</Popup>
             </Marker>
           )}
 
-          {tourPath.length > 1 && (
+          {/* {tourPath.length > 1 && (
             <Polyline
               positions={tourPath}
               color="#4f46e5"
               weight={4}
               opacity={0.8}
             />
-          )}
+          )} */}
 
-          {allData.map((poi) => {
+          {filteredData.map((poi) => {
             const tourIndex =
               currentTour?.pois.findIndex((tp) => tp.poi.id === poi.id) ?? -1;
             const isTourPoi = tourIndex !== -1;
@@ -285,7 +491,6 @@ export function PlacesScreen() {
 
             return (
               <div key={`group-${poi.id}`}>
-                {/* 1. Vẽ vòng tròn bán kính (Radius) mờ */}
                 {currentTour?.pois.find((p) => p.poi.id === poi.id) &&
                   poi.radius &&
                   poi.radius > 0 && (
@@ -293,16 +498,15 @@ export function PlacesScreen() {
                       center={[poi.latitude, poi.longitude]}
                       radius={poi.radius}
                       pathOptions={{
-                        color: isActivePlaying ? "#ef4444" : "#4f46e5", // Màu viền: Đỏ nếu active, xanh nếu thường
-                        fillColor: isActivePlaying ? "#ef4444" : "#4f46e5", // Màu nền
-                        fillOpacity: 0.1, // Nền mờ 10%
-                        weight: 1, // Độ dày viền mỏng
-                        opacity: 0.3, // Độ mờ viền
+                        color: isActivePlaying ? "#ef4444" : "#4f46e5",
+                        fillColor: isActivePlaying ? "#ef4444" : "#4f46e5",
+                        fillOpacity: 0.1,
+                        weight: 1,
+                        opacity: 0.3,
                       }}
                     />
                   )}
 
-                {/* 2. Vẽ Marker cho POI */}
                 <Marker
                   position={[poi.latitude, poi.longitude]}
                   icon={createCustomIcon(
@@ -345,10 +549,9 @@ export function PlacesScreen() {
           })}
         </MapContainer>
 
-        {/* Nút bấm nổi "Định vị vị trí của tôi" */}
         <button
           onClick={handleLocateMe}
-          className="absolute bottom-45 right-4 z-1000 bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-indigo-600 focus:outline-none transition-all active:scale-95 border border-gray-100"
+          className="absolute bottom-35 right-4 z-[1000] bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-indigo-600 focus:outline-none transition-all active:scale-95 border border-gray-100"
           title="Đến vị trí hiện tại"
         >
           {isLocating ? (
@@ -358,10 +561,8 @@ export function PlacesScreen() {
           )}
         </button>
 
-        {/* Floating POI Cards (Carousel) */}
         {currentTour && currentTour.pois.length > 0 && (
-          <div className="absolute bottom-[20px] left-0 right-0 px-4 overflow-x-auto flex gap-4 pb-2 snap-x z-[1000] scrollbar-hide scroll-smooth">
-            {/* ... Code Carousel Card giữ nguyên không đổi ... */}
+          <div className="absolute bottom-3 left-0 right-0 px-4 overflow-x-auto flex gap-4 pb-2 snap-x z-[1000] scrollbar-hide scroll-smooth">
             {currentTour.pois.map(({ poi }, index) => {
               const isThisCardPlaying =
                 !standalonePoi && currentPoiIndex === index;

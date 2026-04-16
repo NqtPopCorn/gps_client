@@ -91,6 +91,14 @@ export interface LoginResponse {
 // POI – Public
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type POIType =
+  | "drink"
+  | "museum"
+  | "park"
+  | "historical"
+  | "shopping"
+  | "other";
+
 export interface POI {
   id: string;
   name: string;
@@ -99,7 +107,7 @@ export interface POI {
   image: string | null;
   latitude: number;
   longitude: number;
-  type: string;
+  type: POIType;
   slug: string;
   /** Distance in metres (float). Read-only, computed by the server. */
   distance: number;
