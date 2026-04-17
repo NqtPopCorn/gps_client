@@ -19,7 +19,7 @@ import { toast } from "react-toastify";
 
 export function TourDetailScreen() {
   const { tourId } = useParams<{ tourId: string }>();
-  const { startTour } = useTourPlayer();
+  const { startTour, currentTour } = useTourPlayer();
   const navigate = useNavigate();
 
   // 1. Khởi tạo useSearchParams để lấy và cập nhật URL
@@ -51,6 +51,11 @@ export function TourDetailScreen() {
   };
 
   const onStartTour = (tour: TourDetail) => {
+    if (currentTour?.id === tour.id) {
+      startTour(tour);
+      navigate("/places");
+      return;
+    }
     // Lấy code trực tiếp từ search params mới nhất
     const code = searchParams.get("code");
     if (!code) {
@@ -61,13 +66,21 @@ export function TourDetailScreen() {
     }
 
     // Gọi API validate
-    tourPublicService.activateTour(tour.id, code).then((response) => {
-      const { data } = response;
-      if (data) {
-        startTour(tour);
-        navigate("/places");
-      }
-    });
+    tourPublicService
+      .activateTour(tour.id, code)
+      .then((response) => {
+        const { data } = response;
+        if (data) {
+          startTour(tour);
+          navigate("/places");
+        }
+      })
+      .catch((err) => {
+        const errorMessage =
+          err.response?.data?.message ||
+          "Mã kích hoạt không hợp lệ hoặc đã hết hạn.";
+        toast.error(errorMessage);
+      });
   };
 
   return (
@@ -184,7 +197,7 @@ export function TourDetailScreen() {
 
                 return (
                   <div
-                    key={item.id}
+                    key={item.poi.id}
                     className={`relative pl-6 ${isLast ? "" : "mb-8"}`}
                   >
                     {/* Circle đánh số */}

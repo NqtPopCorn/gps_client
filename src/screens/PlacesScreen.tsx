@@ -16,6 +16,7 @@ import {
   Play,
   Pause,
   LocateFixed,
+  StepForward,
 } from "lucide-react";
 import L from "leaflet";
 import { useSearchPOI } from "../hooks/usePOI";
@@ -26,6 +27,8 @@ import { blueIcon } from "../lib/leafletIcon";
 import { useSettings } from "../contexts/SettingsContext";
 import { useI18n } from "../contexts/I18nContext";
 import { useCurrentLocation } from "../lib/location";
+import { useGPSAutoPlayContext } from "../contexts/GPSAutoPlayContext";
+import { gpsService, type UserLocation } from "../services/gpsService";
 
 // ─── POI Type Filter Config ────────────────────────────────────────────────
 
@@ -158,11 +161,6 @@ export function PlacesScreen() {
   const { settings, updateSettings } = useSettings();
   const { t } = useI18n();
 
-  const { coords: userLocation, loading: isLocating } = useCurrentLocation({
-    enableHighAccuracy: true,
-    maximumAge: 10000,
-  });
-
   const {
     currentTour,
     currentPoiIndex,
@@ -170,16 +168,36 @@ export function PlacesScreen() {
     standalonePoi,
     togglePlayPause,
     startTour,
+    jumpToPoi,
+    resumeTour,
   } = useTourPlayer();
   const currentTourPoi = currentTour?.pois[currentPoiIndex]?.poi || null;
 
+  const { autoPlayState, enabled } = useGPSAutoPlayContext();
+
   const center: [number, number] = [10.776889, 106.695305];
 
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(true);
+
   useEffect(() => {
-    if (userLocation) {
-      setFlyToUserTrigger((prev) => prev + 1);
-    }
-  }, [userLocation]);
+    // Hàm callback sẽ được gọi mỗi khi GPS cập nhật vị trí mới
+    const handleLocationUpdate = (location: UserLocation) => {
+      setUserLocation(location);
+      setIsLocating(false);
+    };
+
+    // Đăng ký tracking với gpsService
+    gpsService.watchLocation(handleLocationUpdate, {
+      enableHighAccuracy: true,
+      maximumAge: 10000,
+    });
+
+    // Quan trọng: Cleanup function để hủy đăng ký khi component unmount
+    return () => {
+      gpsService.removeListener(handleLocationUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 500);
@@ -431,6 +449,19 @@ export function PlacesScreen() {
 
       {/* Map Content Layer */}
       <div className="flex-1 relative z-0">
+        <div
+          className="absolute top-4 left-4 z-700 px-3 py-1 rounded-full text-xs font-medium text-white"
+          style={{
+            backgroundColor:
+              autoPlayState === "triggered"
+                ? "#ef4444"
+                : autoPlayState === "cooldown"
+                  ? "#f59e0b"
+                  : "#10b981",
+          }}
+        >
+          Auto-play: {enabled ? autoPlayState : "off"}
+        </div>
         <MapContainer
           center={center}
           zoom={13}
@@ -549,6 +580,17 @@ export function PlacesScreen() {
           })}
         </MapContainer>
 
+        {/* resume tour button */}
+        {standalonePoi && currentTour && (
+          <button
+            onClick={resumeTour}
+            className="absolute bottom-35 left-4 z-[1000] bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-indigo-600 focus:outline-none transition-all active:scale-95 border border-gray-100"
+            title="Resume tour"
+          >
+            <StepForward />
+          </button>
+        )}
+
         <button
           onClick={handleLocateMe}
           className="absolute bottom-35 right-4 z-[1000] bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-indigo-600 focus:outline-none transition-all active:scale-95 border border-gray-100"
@@ -573,7 +615,7 @@ export function PlacesScreen() {
                 if (isThisCardPlaying) {
                   togglePlayPause();
                 } else {
-                  startTour(currentTour, index);
+                  jumpToPoi(index);
                 }
               };
 

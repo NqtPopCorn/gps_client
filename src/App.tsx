@@ -28,6 +28,7 @@ import { RegisterScreen } from "./screens/RegisterScreen";
 import { AuthProvider } from "./contexts/AuthContext";
 import { OfflineScreen } from "./screens/OfflineScreen";
 import { ToastContainer } from "react-toastify";
+import { GPSAutoPlayProvider } from "./contexts/GPSAutoPlayContext";
 
 function AppContent() {
   const [isActivated, setIsActivated] = useState<boolean>(true);
@@ -112,30 +113,32 @@ export default function App() {
       <SettingsProvider>
         <I18nProvider>
           <TourPlayerProvider>
-            <Router>
-              <AuthProvider>
-                <AppContent />
-                <ToastContainer
-                  position="top-center"
-                  autoClose={2500}
-                  hideProgressBar
-                  newestOnTop
-                  closeOnClick
-                  pauseOnFocusLoss={false}
-                  pauseOnHover={false}
-                  draggable
-                  draggablePercent={30}
-                  theme="dark"
-                  toastClassName="!rounded-xl !px-4 !py-3 !text-sm top-4"
-                  style={{
-                    width: "100%",
-                    maxWidth: "420px",
-                    margin: "0 auto",
-                    top: "env(safe-area-inset-top)", // 🔥 tránh notch iPhone
-                  }}
-                />
-              </AuthProvider>
-            </Router>
+            <GPSAutoPlayProvider>
+              <Router>
+                <AuthProvider>
+                  <AppContent />
+                  <ToastContainer
+                    position="top-center"
+                    autoClose={2500}
+                    hideProgressBar
+                    newestOnTop
+                    closeOnClick
+                    pauseOnFocusLoss={false}
+                    pauseOnHover={false}
+                    draggable
+                    draggablePercent={30}
+                    theme="dark"
+                    toastClassName="!rounded-xl !px-4 !py-3 !text-sm top-4"
+                    style={{
+                      width: "100%",
+                      maxWidth: "420px",
+                      margin: "0 auto",
+                      top: "env(safe-area-inset-top)", // 🔥 tránh notch iPhone
+                    }}
+                  />
+                </AuthProvider>
+              </Router>
+            </GPSAutoPlayProvider>
           </TourPlayerProvider>
         </I18nProvider>
       </SettingsProvider>

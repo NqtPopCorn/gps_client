@@ -65,7 +65,10 @@ class GPSService {
   /**
    * Watch user location in real-time
    */
-  watchLocation(callback: LocationChangeCallback): void {
+  watchLocation(
+    callback: LocationChangeCallback,
+    config?: GPSServiceConfig,
+  ): void {
     if (!navigator.geolocation) {
       throw new Error("Geolocation API not supported");
     }
@@ -75,6 +78,7 @@ class GPSService {
     if (this.watchId === null) {
       this.watchId = navigator.geolocation.watchPosition(
         (position) => {
+          console.log("GPS update:", position);
           const location: UserLocation = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -88,9 +92,10 @@ class GPSService {
           console.error(`GPS Watch Error: ${error.message}`);
         },
         {
-          enableHighAccuracy: this.config.enableHighAccuracy,
-          timeout: this.config.timeout,
-          maximumAge: this.config.maximumAge,
+          enableHighAccuracy:
+            config?.enableHighAccuracy ?? this.config.enableHighAccuracy,
+          timeout: config?.timeout ?? this.config.timeout,
+          maximumAge: config?.maximumAge ?? this.config.maximumAge,
         },
       );
     }

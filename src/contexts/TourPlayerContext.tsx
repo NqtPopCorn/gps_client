@@ -1,3 +1,21 @@
+/**
+ * TourPlayerContext — Audio engine + tour state
+ *
+ * Trách nhiệm DUY NHẤT:
+ *   - Quản lý HTMLAudioElement singleton
+ *   - Lưu trạng thái tour (currentTour, currentPoiIndex, standalonePoi)
+ *   - Cung cấp các hành động điều khiển (play, pause, jump, seek…)
+ *
+ * KHÔNG biết gì về:
+ *   - GPS / vị trí người dùng
+ *   - Logic "khi nào tự động phát" — đó là việc của useGPSAutoPlay
+ *
+ * Effect phân tách:
+ *  [E1] Init audio + timeupdate  — chạy một lần
+ *  [E2] Lắng nghe "ended"        — đăng ký lại khi activePoi thay đổi
+ *  [E3] Đồng bộ src + auto-play  — chạy khi activeAudioUrl thay đổi
+ */
+
 import React, {
   createContext,
   useContext,
@@ -5,65 +23,158 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
 import type { TourDetail, POI } from "../types/api.types";
 import { useSettings } from "./SettingsContext";
+import { tourPublicService } from "../services";
 
-interface TourPlayerContextType {
-  // Trạng thái (Getters)
+// ─────────────────────────────────────────────────────────────────────────────
+// Contract
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TourPlayerState {
+  /** Tour đang chạy. null = chưa có tour. */
   currentTour: TourDetail | null;
+  /** Index của POI đang active trong tour. */
   currentPoiIndex: number;
-  standalonePoi: POI | null; // Điểm đang nghe lẻ (ngoài Tour)
-  playedPoiIds: Set<string>; // Lưu ID các POI đã nghe xong
+  /** POI đang nghe lẻ ngoài tour. null = không có. */
+  standalonePoi: POI | null;
+  /** POI thực sự đang được active (standalone ưu tiên hơn tour). */
+  activePoi: POI | undefined;
+  /** ID các POI đã nghe xong. */
+  playedPoiIds: Set<string>;
+  /** Audio đang phát không. */
   isPlaying: boolean;
-  progress: number; // Phần trăm chạy audio (0 - 100)
+  /** Tiến trình audio 0–100. */
+  progress: number;
+}
 
-  // Hành động (Setters)
+export interface TourPlayerActions {
+  /** Bắt đầu hoặc khởi động lại một tour, bắt đầu từ startIndex. */
   startTour: (tour: TourDetail, startIndex?: number) => void;
-  togglePlayPause: () => void;
+  /** Dừng hoàn toàn, reset mọi state. */
+  stopTour: () => void;
+  /** Nhảy đến POI theo index (dùng bởi GPS auto-play hoặc carousel). */
+  jumpToPoi: (index: number) => void;
+  /** Next/prev trong tour. Vô hiệu khi đang nghe standalone. */
   nextPoi: () => void;
   prevPoi: () => void;
-  stopTour: () => void;
+  /** Toggle play/pause. */
+  togglePlayPause: () => void;
+  /** Seek đến percent (0–100). */
   seekAudio: (percent: number) => void;
-
-  // Hành động cho điểm lẻ
+  /** Phát một POI lẻ (ngắt tour, ưu tiên phát ngay). */
   playStandalonePoi: (poi: POI) => void;
-  resumeTour: () => void; // Xóa điểm lẻ, quay lại Tour
+  /** Thoát standalone, trả về tour ở trạng thái tạm dừng. */
+  resumeTour: () => void;
 }
+
+export type TourPlayerContextType = TourPlayerState & TourPlayerActions;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Context
+// ─────────────────────────────────────────────────────────────────────────────
 
 const TourPlayerContext = createContext<TourPlayerContextType | undefined>(
   undefined,
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function TourPlayerProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // State cốt lõi
+  // ── Core state ─────────────────────────────────────────────────────────────
   const [currentTour, setCurrentTour] = useState<TourDetail | null>(null);
   const [currentPoiIndex, setCurrentPoiIndex] = useState<number>(0);
   const [standalonePoi, setStandalonePoi] = useState<POI | null>(null);
-
-  // State phụ trợ
   const [playedPoiIds, setPlayedPoiIds] = useState<Set<string>>(new Set());
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const { settings } = useSettings();
 
-  // Tham chiếu Audio HTML
+  // ── Audio singleton ────────────────────────────────────────────────────────
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 1. KHỞI TẠO AUDIO & CẬP NHẬT PROGRESS
+  /**
+   * Ref mirrors — đọc giá trị mới nhất trong useEffect/callback
+   * mà không cần khai báo chúng làm dependency (tránh stale-closure).
+   */
+  const isPlayingRef = useRef(false);
+  const standalonePoiRef = useRef<POI | null>(null);
+  const currentTourRef = useRef<TourDetail | null>(null);
+  const currentPoiIndexRef = useRef(0);
+
+  const activePoi: POI | undefined =
+    standalonePoi ?? currentTour?.pois[currentPoiIndex]?.poi;
+  const activeAudioUrl = activePoi?.audio ?? null;
+
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
+    const audio = audioRef.current;
+    // console.log("TourPlayer activeAudioUrl changed:", activeAudioUrl);
+
+    // console.log({
+    //   audio,
+    //   src: audio?.src,
+    //   activeAudioUrl,
+    //   isPlaying,
+    //   standalonePoi,
+    // });
+
+    if (!audio || !activeAudioUrl) {
+      // console.log("TourPlayer no active audio, pausing");
+      return;
+    }
+    if (audio.src === activeAudioUrl) {
+      // console.log(
+      //   "TourPlayer audio src already set, skipping",
+      //   audio.src,
+      //   activeAudioUrl,
+      // );
+      return; // URL không đổi → bỏ qua
+    }
+    // console.log("TourPlayer activeAudioUrl changedb 131313:", activeAudioUrl);
+
+    if (audio.src !== "") {
+      audio.src = activeAudioUrl;
+      // console.error("Set audio src:", audio.src);
+      setProgress(0);
     }
 
+    if (isPlaying || standalonePoi) {
+      audio.src = activeAudioUrl;
+      audio.play().catch((e) => console.error("[TourPlayer] play error:", e));
+      setIsPlaying(true);
+    }
+
+    // console.error("???", { isPlaying, standalonePoi });
+  }, [activeAudioUrl, currentPoiIndex, standalonePoi, isPlaying]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+  useEffect(() => {
+    standalonePoiRef.current = standalonePoi;
+  }, [standalonePoi]);
+  useEffect(() => {
+    currentTourRef.current = currentTour;
+  }, [currentTour]);
+  useEffect(() => {
+    currentPoiIndexRef.current = currentPoiIndex;
+  }, [currentPoiIndex]);
+
+  // ── [E1] Init audio & timeupdate — chạy một lần ───────────────────────────
+  useEffect(() => {
+    audioRef.current = new Audio();
     const audio = audioRef.current;
 
     const handleTimeUpdate = () => {
-      if (audio.duration) {
+      if (audio.duration > 0) {
         setProgress((audio.currentTime / audio.duration) * 100);
       }
     };
@@ -75,33 +186,25 @@ export function TourPlayerProvider({
     };
   }, []);
 
-  // Xác định POI đang được Active (Ưu tiên Standalone > Tour)
-  const activePoi = standalonePoi || currentTour?.pois[currentPoiIndex]?.poi;
-
-  // 2. LẮNG NGHE SỰ KIỆN ENDED (HẾT BÀI)
+  // ── [E2] Lắng nghe "ended" ─────────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !activePoi) return;
 
     const handleEnded = () => {
-      // 1. Lưu bài vừa phát vào danh sách "Đã nghe"
+      // Ghi nhận POI vừa nghe xong
       setPlayedPoiIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.add(activePoi.id);
-        return newSet;
+        const next = new Set(prev);
+        next.add(activePoi.id);
+        return next;
       });
 
-      // 2. Xử lý điều hướng
-      if (standalonePoi) {
-        // Đang nghe bài lẻ -> Hết bài -> Tắt bài lẻ, trả về Tour nhưng ở trạng thái TẠM DỪNG
+      if (standalonePoiRef.current) {
+        // Bài lẻ kết thúc → tắt, trả về tour (tạm dừng)
         setStandalonePoi(null);
         setIsPlaying(false);
         setProgress(0);
-      } else if (currentTour && currentPoiIndex < currentTour.pois.length - 1) {
-        // Đang nghe Tour -> Hết bài -> Tự động qua bài tiếp theo
-        setCurrentPoiIndex((prev) => prev + 1);
       } else {
-        // Hết trọn bộ Tour
         setIsPlaying(false);
         setProgress(0);
       }
@@ -109,93 +212,71 @@ export function TourPlayerProvider({
 
     audio.addEventListener("ended", handleEnded);
     return () => audio.removeEventListener("ended", handleEnded);
-  }, [activePoi, standalonePoi, currentTour, currentPoiIndex]);
+  }, [activePoi]);
 
-  // 3. ĐỒNG BỘ SOURCE AUDIO & PLAY NGAY KHI CÓ THAY ĐỔI
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !activePoi?.audio) return;
-
-    // Chỉ thay source và load lại nếu URL thực sự khác biệt
-    if (audio.src !== activePoi.audio) {
-      audio.src = activePoi.audio;
-      setProgress(0);
-
-      // Auto-play bài mới nếu đang trong trạng thái play, HOẶC nếu user vừa chủ động chọn bài lẻ
-      if (isPlaying || standalonePoi) {
-        audio.play().catch((e) => console.error("Audio play error:", e));
-        setIsPlaying(true);
+    const fetchTourWithLanguage = async () => {
+      if (!currentTour) return;
+      try {
+        const res = await tourPublicService.getById(
+          currentTour.id,
+          settings.language,
+        );
+        setCurrentTour(res.data);
+      } catch (error) {
+        console.error("Failed to fetch tour with language:", error);
       }
-    }
-  }, [activePoi, isPlaying, standalonePoi]);
+    };
+    fetchTourWithLanguage();
+  }, [settings.language]);
 
-  // ---- CÁC HÀM ĐIỀU KHIỂN (ACTIONS) ----
+  // ── Actions ────────────────────────────────────────────────────────────────
 
-  const startTour = useCallback((tour: TourDetail, startIndex: number = 0) => {
+  const startTour = useCallback((tour: TourDetail, startIndex = 0) => {
     setCurrentTour(tour);
-    setCurrentPoiIndex(startIndex);
-    setStandalonePoi(null); // Reset mọi bài lẻ đang nghe
-    setIsPlaying(true);
-
-    // Ép play ngay lập tức cho bài đầu tiên
-    if (audioRef.current && tour.pois[startIndex]?.poi.audio) {
-      audioRef.current.src = tour.pois[startIndex].poi.audio;
-      audioRef.current.play().catch(console.error);
-    }
-  }, []);
-
-  const playStandalonePoi = useCallback(
-    (poi: POI) => {
-      // Nếu đang nghe chính bài đó rồi thì không làm gì cả
-      if (audioRef.current?.src === poi.audio) {
-        return;
-      }
-      setStandalonePoi(poi);
-      setIsPlaying(true); // Cờ này sẽ kích hoạt play ở useEffect (3)
-    },
-    [standalonePoi, currentTour, currentPoiIndex, settings],
-  );
-
-  const resumeTour = useCallback(() => {
+    setPlayedPoiIds(new Set());
     setStandalonePoi(null);
-    // Lưu ý: Không auto-play (setIsPlaying(false)) để tránh làm người dùng giật mình
-    // Họ sẽ tự bấm nút Play trên MiniPlayer nếu muốn đi Tour tiếp
-    setIsPlaying(false);
-    setProgress(0); // Progress reset về 0 cho bài Tour hiện tại
   }, []);
 
-  const togglePlayPause = useCallback(() => {
-    if (!audioRef.current || !activePoi) return;
+  /**
+   * jumpToPoi — nhảy đến bất kỳ POI nào trong tour hiện tại.
+   * Được gọi bởi: carousel click, GPS auto-play, user chọn POI trên map.
+   */
+  const jumpToPoi = useCallback((index: number) => {
+    const tour = currentTourRef.current;
+    if (!tour) return;
+    if (index < 0 || index >= tour.pois.length) return;
 
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play().catch(console.error);
-      setIsPlaying(true);
-    }
-  }, [isPlaying, activePoi]);
+    setStandalonePoi(null); // Thoát standalone nếu đang có
+    setCurrentPoiIndex(index);
+    setIsPlaying(true);
+    console.log("jumpToPoi:", index, tour.pois[index].poi.name);
+  }, []);
 
   const nextPoi = useCallback(() => {
-    if (standalonePoi) return; // Đang nghe bài lẻ thì vô hiệu hoá nút Next của Tour
-    if (currentTour && currentPoiIndex < currentTour.pois.length - 1) {
+    if (standalonePoiRef.current) return;
+    const tour = currentTourRef.current;
+    const idx = currentPoiIndexRef.current;
+    if (tour && idx < tour.pois.length - 1) {
       setCurrentPoiIndex((prev) => prev + 1);
       setIsPlaying(true);
     }
-  }, [currentTour, currentPoiIndex, standalonePoi]);
+  }, []);
 
   const prevPoi = useCallback(() => {
-    if (standalonePoi) return; // Đang nghe bài lẻ thì vô hiệu hoá nút Prev của Tour
-    if (currentTour && currentPoiIndex > 0) {
+    if (standalonePoiRef.current) return;
+    const idx = currentPoiIndexRef.current;
+    if (currentTourRef.current && idx > 0) {
       setCurrentPoiIndex((prev) => prev - 1);
       setIsPlaying(true);
     }
-  }, [currentTour, currentPoiIndex, standalonePoi]);
+  }, []);
 
   const stopTour = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
     }
     setCurrentTour(null);
     setCurrentPoiIndex(0);
@@ -204,43 +285,103 @@ export function TourPlayerProvider({
     setProgress(0);
   }, []);
 
+  const togglePlayPause = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !activePoi) return;
+
+    if (isPlayingRef.current) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().catch((e) => console.error("[TourPlayer] toggle error:", e));
+      setIsPlaying(true);
+    }
+  }, [activePoi]);
+
   const seekAudio = useCallback((percent: number) => {
-    if (audioRef.current && audioRef.current.duration) {
-      const timeToSeek = (percent / 100) * audioRef.current.duration;
-      audioRef.current.currentTime = timeToSeek;
+    const audio = audioRef.current;
+    if (audio && audio.duration > 0) {
+      audio.currentTime = (percent / 100) * audio.duration;
       setProgress(percent);
     }
   }, []);
 
+  /**
+   * playStandalonePoi — phát một POI lẻ, ngắt tour hiện tại.
+   * Nếu đúng URL đang phát thì bỏ qua (không restart).
+   */
+  const playStandalonePoi = useCallback((poi: POI) => {
+    if (audioRef.current?.src === poi.audio) return;
+    setStandalonePoi(poi);
+    setIsPlaying(true); // [E3] sẽ load và play
+  }, []);
+
+  const resumeTour = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    setStandalonePoi(null);
+    setIsPlaying(false);
+    setProgress(0);
+  }, []);
+
+  // ── Context value ──────────────────────────────────────────────────────────
+  const value = useMemo<TourPlayerContextType>(
+    () => ({
+      currentTour,
+      currentPoiIndex,
+      standalonePoi,
+      activePoi,
+      playedPoiIds,
+      isPlaying,
+      progress,
+      startTour,
+      stopTour,
+      jumpToPoi,
+      nextPoi,
+      prevPoi,
+      togglePlayPause,
+      seekAudio,
+      playStandalonePoi,
+      resumeTour,
+    }),
+    [
+      currentTour,
+      currentPoiIndex,
+      standalonePoi,
+      activePoi,
+      playedPoiIds,
+      isPlaying,
+      progress,
+      startTour,
+      stopTour,
+      jumpToPoi,
+      nextPoi,
+      prevPoi,
+      togglePlayPause,
+      seekAudio,
+      playStandalonePoi,
+      resumeTour,
+    ],
+  );
+
   return (
-    <TourPlayerContext.Provider
-      value={{
-        currentTour,
-        currentPoiIndex,
-        standalonePoi,
-        playedPoiIds,
-        isPlaying,
-        progress,
-        startTour,
-        togglePlayPause,
-        nextPoi,
-        prevPoi,
-        stopTour,
-        seekAudio,
-        playStandalonePoi,
-        resumeTour,
-      }}
-    >
+    <TourPlayerContext.Provider value={value}>
       {children}
     </TourPlayerContext.Provider>
   );
 }
 
-// Hook để sử dụng nhanh trong các component
-export function useTourPlayer() {
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useTourPlayer(): TourPlayerContextType {
   const context = useContext(TourPlayerContext);
-  if (context === undefined) {
-    throw new Error("useTourPlayer phải được bọc bên trong TourPlayerProvider");
+  if (!context) {
+    throw new Error("useTourPlayer phải được bọc trong <TourPlayerProvider>");
   }
   return context;
 }

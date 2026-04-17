@@ -1,3 +1,16 @@
+/**
+ * location.ts
+ *
+ * Tiện ích GPS một lần (getCurrentLocation) và React hook bọc nó.
+ * Tọa độ real-time (watchPosition) do `gpsService` quản lý —
+ * xem `src/services/gpsService.ts`.
+ */
+
+import { useState, useEffect, useCallback } from "react";
+
+// ─── Kiểu dữ liệu ─────────────────────────────────────────────────────────────
+
+/** Tọa độ trả về từ Geolocation API. */
 export interface Coordinates {
   latitude: number;
   longitude: number;
@@ -10,14 +23,18 @@ export interface GetLocationOptions {
   maximumAge?: number;
 }
 
-const DEFAULT_OPTIONS: GetLocationOptions = {
+// ─── Hằng số ──────────────────────────────────────────────────────────────────
+
+const DEFAULT_OPTIONS: Required<GetLocationOptions> = {
   enableHighAccuracy: true,
   timeout: 10_000,
   maximumAge: 0,
 };
 
+// ─── Hàm lấy vị trí một lần ──────────────────────────────────────────────────
+
 /**
- * Get the user's current position once.
+ * Lấy vị trí hiện tại của người dùng một lần (Promise-based).
  *
  * @example
  * const coords = await getCurrentLocation();
@@ -31,8 +48,6 @@ export function getCurrentLocation(
       reject(new Error("Trình duyệt không hỗ trợ Geolocation API."));
       return;
     }
-
-    const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -57,45 +72,12 @@ export function getCurrentLocation(
             reject(new Error("Lỗi không xác định khi lấy vị trí."));
         }
       },
-      mergedOptions,
+      { ...DEFAULT_OPTIONS, ...options },
     );
   });
 }
 
-/**
- * Return distance in meters between two lat/lon points.
- */
-export async function calcCurrentDistance(
-  lat2: number,
-  lon2: number,
-): Promise<number> {
-  // haversine
-  const R = 6371000; // Earth radius in meters
-
-  const { latitude: lat1, longitude: lon1 } = await getCurrentLocation();
-
-  // Hàm phụ chuyển đổi từ độ sang radian
-  const toRadians = (degrees: number): number => degrees * (Math.PI / 180);
-
-  const phi1 = toRadians(lat1);
-  const phi2 = toRadians(lat2);
-  const dphi = toRadians(lat2 - lat1);
-  const dlambda = toRadians(lon2 - lon1);
-
-  const a =
-    Math.sin(dphi / 2) ** 2 +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlambda / 2) ** 2;
-
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/**
- * React hook — wraps getCurrentLocation with loading/error state.
- *
- * @example
- * const { coords, loading, error, refetch } = useCurrentLocation();
- */
-import { useState, useEffect, useCallback } from "react";
+// ─── React hook ───────────────────────────────────────────────────────────────
 
 interface UseCurrentLocationState {
   coords: Coordinates | null;
@@ -103,6 +85,14 @@ interface UseCurrentLocationState {
   error: string | null;
 }
 
+/**
+ * React hook bọc `getCurrentLocation` với trạng thái loading/error.
+ * Chỉ lấy vị trí **một lần** khi mount (hoặc khi `refetch` được gọi).
+ * Để theo dõi vị trí liên tục, dùng `gpsService.watchLocation()`.
+ *
+ * @example
+ * const { coords, loading, error, refetch } = useCurrentLocation();
+ */
 export function useCurrentLocation(options: GetLocationOptions = {}) {
   const [state, setState] = useState<UseCurrentLocationState>({
     coords: null,
@@ -122,6 +112,7 @@ export function useCurrentLocation(options: GetLocationOptions = {}) {
         error: err instanceof Error ? err.message : "Lỗi không xác định.",
       });
     }
+    // options object reference thay đổi mỗi render nên bỏ khỏi dep list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
