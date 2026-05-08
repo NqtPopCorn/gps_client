@@ -15,6 +15,9 @@ import type {
   LoginData,
 } from "../types/api.types";
 import type { ApiError } from "../lib/api";
+// import { heartBeatService } from "../services/heartbeat.service";
+import { useSettings } from "./SettingsContext";
+import { useHeartbeat } from "../hooks/useHeartbeat";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,20 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: false,
     error: null,
   });
+  const { settings } = useSettings();
+  // register heartbeat
+  useHeartbeat(state.user === null, state.user?.id || "", settings.language);
 
   // Restore session on mount
   useEffect(() => {
-    // Ensure device_id exists for logging history even if not logged in
-    const device_id = localStorage.getItem("device_id");
-    if (!device_id) {
-      // create fake device id for logging history without login
-      console.warn(
-        "No device_id found, generating a new one for history logging.",
-      );
-      const newDeviceId = `device-${Math.random().toString(36).substring(2, 20)}`;
-      localStorage.setItem("device_id", newDeviceId);
-    }
-
     const token = tokenStorage.get();
     if (!token) return;
 
@@ -72,20 +67,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Listen for 401 events
-  useEffect(() => {
-    const onUnauthorized = () => {
-      tokenStorage.clear();
-      setState({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-    };
-    window.addEventListener("auth:unauthorized", onUnauthorized);
-    return () =>
-      window.removeEventListener("auth:unauthorized", onUnauthorized);
-  }, []);
+  // useEffect(() => {
+  //   const onUnauthorized = () => {
+  //     tokenStorage.clear();
+  //     setState({
+  //       user: null,
+  //       isAuthenticated: false,
+  //       isLoading: false,
+  //       error: null,
+  //     });
+  //   };
+  //   window.addEventListener("auth:unauthorized", onUnauthorized);
+  //   return () =>
+  //     window.removeEventListener("auth:unauthorized", onUnauthorized);
+  // }, []);
 
   // ─── Login ──────────────────────────────────────────────────────────────────
 

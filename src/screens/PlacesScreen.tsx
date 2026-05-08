@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
-  Polyline,
   useMap,
   Circle,
+  useMapEvents,
 } from "react-leaflet";
 import {
   Search,
@@ -17,18 +17,20 @@ import {
   Pause,
   LocateFixed,
   StepForward,
+  Hexagon,
 } from "lucide-react";
 import L from "leaflet";
 import { useSearchPOI } from "../hooks/usePOI";
+import { useBboxPOI } from "../hooks/useBboxPOI";
 import { LANGUAGES, type LangCode, type POI } from "../types/api.types";
 import { NavLink } from "react-router-dom";
 import { useTourPlayer } from "../contexts/TourPlayerContext";
 import { blueIcon } from "../lib/leafletIcon";
 import { useSettings } from "../contexts/SettingsContext";
 import { useI18n } from "../contexts/I18nContext";
-import { useCurrentLocation } from "../lib/location";
 import { useGPSAutoPlayContext } from "../contexts/GPSAutoPlayContext";
 import { gpsService, type UserLocation } from "../services/gpsService";
+import type { BBox } from "../lib/h3Utils";
 
 // ─── POI Type Filter Config ────────────────────────────────────────────────
 
@@ -83,28 +85,22 @@ const POI_TYPE_CONFIG: Record<POIType, TypeConfig> = {
 
 const ALL_POI_TYPES = Object.keys(POI_TYPE_CONFIG) as POIType[];
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Leaflet icon setup ────────────────────────────────────────────────────
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 
-const createCustomIcon = (
-  tourIndex: number | null,
-  isActive: boolean = false,
-) => {
+const createCustomIcon = (tourIndex: number | null, isActive = false) => {
   if (tourIndex !== null) {
     const bgColor = isActive ? "#ef4444" : "#4f46e5";
     const size = isActive ? 34 : 28;
     return L.divIcon({
       className: "custom-tour-marker",
-      html: `<div style="background-color: ${bgColor}; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s ease;">${
-        tourIndex + 1
-      }</div>`,
+      html: `<div style="background-color:${bgColor};color:white;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;border:2px solid white;box-shadow:0 4px 6px rgba(0,0,0,0.3);transition:all 0.3s ease;">${tourIndex + 1}</div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
-  } else {
-    return blueIcon;
   }
+  return blueIcon;
 };
 
 const userLocationIcon = L.divIcon({
@@ -114,6 +110,9 @@ const userLocationIcon = L.divIcon({
   iconAnchor: [11, 11],
 });
 
+// ─── Map sub-components ────────────────────────────────────────────────────
+
+/** Flies to selectedPoi when it changes */
 function MapController({ selectedPoi }: { selectedPoi: POI | null }) {
   const map = useMap();
   useEffect(() => {
@@ -126,6 +125,7 @@ function MapController({ selectedPoi }: { selectedPoi: POI | null }) {
   return null;
 }
 
+/** Flies to user / active POI on demand */
 function LocationController({
   userCoords,
   poiCoords,
@@ -137,27 +137,79 @@ function LocationController({
 }) {
   const map = useMap();
   useEffect(() => {
-    if (poiCoords && flyTrigger == 1) {
-      map.flyTo([poiCoords.lat, poiCoords.lng], 16, {
-        duration: 0.8,
-      });
+    if (poiCoords && flyTrigger === 1) {
+      map.flyTo([poiCoords.lat, poiCoords.lng], 16, { duration: 0.8 });
     } else if (userCoords && flyTrigger > 1) {
       map.flyTo([userCoords.lat, userCoords.lng], 16, { duration: 1 });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyTrigger]);
+  return null;
+}
+
+/**
+ * Listens to Leaflet map move/zoom events and reports the current
+ * viewport bbox + zoom level back to PlacesScreen state.
+ * Debounced to avoid spamming on rapid panning.
+ */
+function MapBoundsTracker({
+  onBoundsChange,
+}: {
+  onBoundsChange: (bbox: BBox, zoom: number) => void;
+}) {
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const report = useCallback(
+    (map: L.Map) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const b = map.getBounds();
+        onBoundsChange(
+          {
+            north: b.getNorth(),
+            south: b.getSouth(),
+            east: b.getEast(),
+            west: b.getWest(),
+          },
+          map.getZoom(),
+        );
+      }, 300);
+    },
+    [onBoundsChange],
+  );
+
+  // Fire immediately on mount
+  const map = useMapEvents({
+    moveend: () => report(map),
+    zoomend: () => report(map),
+    load: () => report(map),
+  });
+
+  useEffect(() => {
+    report(map);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [map, report]);
 
   return null;
 }
+
+// ─── PlacesScreen ──────────────────────────────────────────────────────────
 
 export function PlacesScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedPoi, setSelectedPoi] = useState<POI | null>(null);
-
-  // 1. Chuyển sang Set<string> để hỗ trợ filter "current_tour"
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
-
   const [flyToUserTrigger, setFlyToUserTrigger] = useState(0);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState(true);
+
+  // ── Map viewport state ─────────────────────────────────────────────────────
+  const [mapBbox, setMapBbox] = useState<BBox | null>(null);
+  const [mapZoom, setMapZoom] = useState(13);
+
   const { settings, updateSettings } = useSettings();
   const { t } = useI18n();
 
@@ -167,116 +219,113 @@ export function PlacesScreen() {
     isPlaying,
     standalonePoi,
     togglePlayPause,
-    startTour,
     jumpToPoi,
     resumeTour,
   } = useTourPlayer();
-  const currentTourPoi = currentTour?.pois[currentPoiIndex]?.poi || null;
 
+  const currentTourPoi = currentTour?.pois[currentPoiIndex]?.poi ?? null;
   const { autoPlayState, enabled } = useGPSAutoPlayContext();
 
   const center: [number, number] = [10.776889, 106.695305];
 
-  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
-  const [isLocating, setIsLocating] = useState<boolean>(true);
-
+  // ── GPS watch ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Hàm callback sẽ được gọi mỗi khi GPS cập nhật vị trí mới
-    const handleLocationUpdate = (location: UserLocation) => {
-      setUserLocation(location);
+    const handleLocationUpdate = (loc: UserLocation) => {
+      setUserLocation(loc);
       setIsLocating(false);
     };
-
-    // Đăng ký tracking với gpsService
     gpsService.watchLocation(handleLocationUpdate, {
       enableHighAccuracy: true,
-      maximumAge: 10000,
+      maximumAge: 10_000,
     });
-
-    // Quan trọng: Cleanup function để hủy đăng ký khi component unmount
-    return () => {
-      gpsService.removeListener(handleLocationUpdate);
-    };
+    return () => gpsService.removeListener(handleLocationUpdate);
   }, []);
 
+  // ── Search debounce ────────────────────────────────────────────────────────
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 500);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 500);
+    return () => clearTimeout(t);
   }, [searchQuery]);
 
-  const allPoisState = useSearchPOI();
-  const searchState = useSearchPOI(debouncedQuery);
+  // ── Viewport bbox → H3 POI fetching ───────────────────────────────────────
+  const {
+    pois: bboxPois,
+    isLoading: bboxLoading,
+    error: bboxError,
+    cellCount,
+    cacheHits,
+  } = useBboxPOI({
+    bbox: mapBbox,
+    zoom: mapZoom,
+    lang: settings.language,
+    minZoom: 11, // don't fetch below zoom 11
+  });
 
-  const allData: POI[] = allPoisState.data || [];
+  // ── Text search ────────────────────────────────────────────────────────────
+  const searchState = useSearchPOI(debouncedQuery || undefined);
 
-  // Hàm toggle filter chung
+  // ── Viewport bounds callback (memoised for MapBoundsTracker) ──────────────
+  const handleBoundsChange = useCallback((bbox: BBox, zoom: number) => {
+    setMapBbox(bbox);
+    setMapZoom(zoom);
+  }, []);
+
+  // ── Type filter toggle ────────────────────────────────────────────────────
   const toggleType = (type: string) => {
     setSelectedTypes((prev) => {
       const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
+      next.has(type) ? next.delete(type) : next.add(type);
       return next;
     });
   };
 
-  // 2. Logic lọc dữ liệu mới
+  // ── Filtered data ─────────────────────────────────────────────────────────
+  // Source: text search result takes priority, otherwise use bbox pois
+  const sourceData: POI[] = debouncedQuery
+    ? (searchState.data ?? [])
+    : bboxPois;
+
   const filteredData: POI[] =
     selectedTypes.size === 0
-      ? allData
-      : allData.filter((poi) => {
+      ? sourceData
+      : sourceData.filter((poi) => {
           const isTourPoi =
             currentTour?.pois.some((tp) => tp.poi.id === poi.id) ?? false;
-          const hasTourFilter = selectedTypes.has("current_tour");
-          const hasTypeFilter = selectedTypes.has(poi.type);
-
-          // Lấy POI nếu nó thỏa điều kiện filter type HOẶC thỏa điều kiện filter tour hiện tại
-          return hasTypeFilter || (hasTourFilter && isTourPoi);
+          return (
+            selectedTypes.has(poi.type) ||
+            (selectedTypes.has("current_tour") && isTourPoi)
+          );
         });
 
-  // const tourPath =
-  //   currentTour?.pois.map(
-  //     ({ poi: p }) => [p.latitude, p.longitude] as [number, number],
-  //   ) || [];
-
+  // ── Scroll active tour card into view ────────────────────────────────────
   useEffect(() => {
     if (currentTour && !standalonePoi) {
-      const activeCard = document.getElementById(
-        `tour-card-${currentPoiIndex}`,
-      );
-      if (activeCard) {
-        activeCard.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-          inline: "center",
-        });
-      }
+      document.getElementById(`tour-card-${currentPoiIndex}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
     }
   }, [currentPoiIndex, currentTour, standalonePoi]);
 
-  const formatDistance = (distanceInMeters: number | undefined) => {
-    if (distanceInMeters === undefined || distanceInMeters === null)
-      return t("places.distance.nearby");
-    if (distanceInMeters < 1000)
-      return t("places.distance.meters", {
-        value: Math.round(distanceInMeters),
-      });
-    return t("places.distance.kilometers", {
-      value: (distanceInMeters / 1000).toFixed(1),
-    });
+  // ── Distance formatter ────────────────────────────────────────────────────
+  const formatDistance = (d: number | undefined) => {
+    if (d == null) return t("places.distance.nearby");
+    if (d < 1000) return t("places.distance.meters", { value: Math.round(d) });
+    return t("places.distance.kilometers", { value: (d / 1000).toFixed(1) });
   };
 
-  const handleLocateMe = () => {
-    setFlyToUserTrigger((prev) => prev + 1);
-  };
+  const isAnyLoading = debouncedQuery ? searchState.loading : bboxLoading;
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      {/* Header & Search Layer */}
+      {/* ── Header & Search ───────────────────────────────────────────────── */}
       <div className="px-4 py-4 bg-white relative z-50 shadow-sm">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-gray-900">
             {t("places.title")}
           </h1>
+
           <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
             <Globe size={16} className="text-gray-500" />
             <select
@@ -295,6 +344,7 @@ export function PlacesScreen() {
           </div>
         </div>
 
+        {/* Search box */}
         <div className="relative">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -307,12 +357,23 @@ export function PlacesScreen() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-gray-100 rounded-xl py-2.5 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
           />
-          {searchState.loading && (
+          {isAnyLoading && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
               <Loader2 className="animate-spin text-indigo-500" size={18} />
             </div>
           )}
         </div>
+
+        {/* H3 cache debug badge */}
+        {/* {!debouncedQuery && mapBbox && (
+          <div className="flex items-center gap-1.5 mt-2 text-[10px] text-gray-400 font-mono">
+            <Hexagon size={10} />
+            <span>
+              {cellCount} cells · {cacheHits} cached · {filteredData.length}{" "}
+              POIs
+            </span>
+          </div>
+        )} */}
 
         {/* Search Results Overlay */}
         {debouncedQuery.trim().length > 0 && (
@@ -324,15 +385,15 @@ export function PlacesScreen() {
               </div>
             ) : searchState.error ? (
               <div className="py-6 text-center text-sm text-red-500 px-4">
-                Lỗi tìm kiếm: {searchState.error}
+                Lỗi: {searchState.error}
               </div>
-            ) : searchState.data && searchState.data.length > 0 ? (
+            ) : searchState.data?.length ? (
               <ul>
-                {searchState.data.map((poi, index) => (
+                {searchState.data.map((poi, i) => (
                   <li key={poi.id}>
                     <button
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left ${
-                        index !== searchState.data.length - 1
+                        i !== searchState.data.length - 1
                           ? "border-b border-gray-100"
                           : ""
                       }`}
@@ -344,7 +405,7 @@ export function PlacesScreen() {
                     >
                       <img
                         src={
-                          poi.image ||
+                          poi.image ??
                           "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400"
                         }
                         alt={poi.name}
@@ -383,15 +444,13 @@ export function PlacesScreen() {
                 <p className="text-sm font-medium text-gray-500">
                   Không tìm thấy địa điểm nào
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Thử từ khóa khác</p>
               </div>
             )}
           </div>
         )}
 
-        {/* POI Type Filter Chips */}
+        {/* Type filter chips */}
         <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide pb-0.5">
-          {/* 3. Filter Tour Hiện Tại (Chỉ hiện khi có currentTour) */}
           {currentTour && (
             <button
               onClick={() => toggleType("current_tour")}
@@ -404,14 +463,11 @@ export function PlacesScreen() {
               <span>🗺️</span>
               <span>{t("places.filter.currentTour") || "Tour hiện tại"}</span>
               {selectedTypes.has("current_tour") && (
-                <span className="ml-0.5 opacity-80 text-[10px] leading-none">
-                  ✕
-                </span>
+                <span className="opacity-80 text-[10px]">✕</span>
               )}
             </button>
           )}
 
-          {/* Các filter Type mặc định */}
           {ALL_POI_TYPES.map((type) => {
             const cfg = POI_TYPE_CONFIG[type];
             const isActive = selectedTypes.has(type);
@@ -427,11 +483,7 @@ export function PlacesScreen() {
               >
                 <span>{cfg.emoji}</span>
                 <span>{cfg.label}</span>
-                {isActive && (
-                  <span className="ml-0.5 opacity-80 text-[10px] leading-none">
-                    ✕
-                  </span>
-                )}
+                {isActive && <span className="opacity-80 text-[10px]">✕</span>}
               </button>
             );
           })}
@@ -447,10 +499,11 @@ export function PlacesScreen() {
         </div>
       </div>
 
-      {/* Map Content Layer */}
+      {/* ── Map ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 relative z-0">
+        {/* Auto-play badge */}
         <div
-          className="absolute top-4 left-4 z-700 px-3 py-1 rounded-full text-xs font-medium text-white"
+          className="absolute top-4 left-4 z-[700] px-3 py-1 rounded-full text-xs font-medium text-white"
           style={{
             backgroundColor:
               autoPlayState === "triggered"
@@ -462,6 +515,7 @@ export function PlacesScreen() {
         >
           Auto-play: {enabled ? autoPlayState : "off"}
         </div>
+
         <MapContainer
           center={center}
           zoom={13}
@@ -473,8 +527,9 @@ export function PlacesScreen() {
             attribution="&copy; OpenStreetMap"
           />
 
+          {/* ── Listeners ────────────────────────────────────────────────── */}
           <MapController selectedPoi={selectedPoi} />
-
+          <MapBoundsTracker onBoundsChange={handleBoundsChange} />
           <LocationController
             userCoords={
               userLocation
@@ -492,6 +547,7 @@ export function PlacesScreen() {
             flyTrigger={flyToUserTrigger}
           />
 
+          {/* User dot */}
           {userLocation && (
             <Marker
               position={[userLocation.latitude, userLocation.longitude]}
@@ -502,41 +558,30 @@ export function PlacesScreen() {
             </Marker>
           )}
 
-          {/* {tourPath.length > 1 && (
-            <Polyline
-              positions={tourPath}
-              color="#4f46e5"
-              weight={4}
-              opacity={0.8}
-            />
-          )} */}
-
+          {/* POI markers */}
           {filteredData.map((poi) => {
             const tourIndex =
               currentTour?.pois.findIndex((tp) => tp.poi.id === poi.id) ?? -1;
             const isTourPoi = tourIndex !== -1;
-
             const isActivePlaying =
               (isTourPoi && !standalonePoi && currentPoiIndex === tourIndex) ||
               standalonePoi?.id === poi.id;
 
             return (
               <div key={`group-${poi.id}`}>
-                {currentTour?.pois.find((p) => p.poi.id === poi.id) &&
-                  poi.radius &&
-                  poi.radius > 0 && (
-                    <Circle
-                      center={[poi.latitude, poi.longitude]}
-                      radius={poi.radius}
-                      pathOptions={{
-                        color: isActivePlaying ? "#ef4444" : "#4f46e5",
-                        fillColor: isActivePlaying ? "#ef4444" : "#4f46e5",
-                        fillOpacity: 0.1,
-                        weight: 1,
-                        opacity: 0.3,
-                      }}
-                    />
-                  )}
+                {isTourPoi && poi.radius > 0 && (
+                  <Circle
+                    center={[poi.latitude, poi.longitude]}
+                    radius={poi.radius}
+                    pathOptions={{
+                      color: isActivePlaying ? "#ef4444" : "#4f46e5",
+                      fillColor: isActivePlaying ? "#ef4444" : "#4f46e5",
+                      fillOpacity: 0.1,
+                      weight: 1,
+                      opacity: 0.3,
+                    }}
+                  />
+                )}
 
                 <Marker
                   position={[poi.latitude, poi.longitude]}
@@ -545,18 +590,16 @@ export function PlacesScreen() {
                     isActivePlaying,
                   )}
                   zIndexOffset={isActivePlaying ? 1000 : isTourPoi ? 500 : 0}
-                  eventHandlers={{
-                    click: () => setSelectedPoi(poi),
-                  }}
+                  eventHandlers={{ click: () => setSelectedPoi(poi) }}
                 >
                   <Popup
                     className="rounded-xl overflow-hidden shadow-lg p-0"
-                    closeButton={true}
+                    closeButton
                   >
                     <div className="p-0 m-0 w-56">
                       <img
                         src={
-                          poi.image ||
+                          poi.image ??
                           "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800"
                         }
                         alt={poi.name}
@@ -580,7 +623,7 @@ export function PlacesScreen() {
           })}
         </MapContainer>
 
-        {/* resume tour button */}
+        {/* Resume tour button */}
         {standalonePoi && currentTour && (
           <button
             onClick={resumeTour}
@@ -591,8 +634,9 @@ export function PlacesScreen() {
           </button>
         )}
 
+        {/* Locate me button */}
         <button
-          onClick={handleLocateMe}
+          onClick={() => setFlyToUserTrigger((p) => p + 1)}
           className="absolute bottom-35 right-4 z-[1000] bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-indigo-600 focus:outline-none transition-all active:scale-95 border border-gray-100"
           title="Đến vị trí hiện tại"
         >
@@ -603,21 +647,13 @@ export function PlacesScreen() {
           )}
         </button>
 
+        {/* Tour POI carousel */}
         {currentTour && currentTour.pois.length > 0 && (
           <div className="absolute bottom-3 left-0 right-0 px-4 overflow-x-auto flex gap-4 pb-2 snap-x z-[1000] scrollbar-hide scroll-smooth">
             {currentTour.pois.map(({ poi }, index) => {
               const isThisCardPlaying =
                 !standalonePoi && currentPoiIndex === index;
               const isCurrentlyPlaying = isThisCardPlaying && isPlaying;
-
-              const handlePlayClick = (e: React.MouseEvent) => {
-                e.stopPropagation();
-                if (isThisCardPlaying) {
-                  togglePlayPause();
-                } else {
-                  jumpToPoi(index);
-                }
-              };
 
               return (
                 <div
@@ -627,11 +663,11 @@ export function PlacesScreen() {
                     e.currentTarget.scrollIntoView();
                     setSelectedPoi(poi);
                   }}
-                  className={`flex-shrink-0 w-72 bg-white rounded-2xl shadow-lg overflow-hidden snap-center cursor-pointer transition-all border-2 scroll-hide ${
+                  className={`flex-shrink-0 w-72 bg-white rounded-2xl shadow-lg overflow-hidden snap-center cursor-pointer transition-all border-2 ${
                     selectedPoi?.id === poi.id
-                      ? "border-indigo-500 scale-100"
+                      ? "border-indigo-500"
                       : isThisCardPlaying
-                        ? "border-red-400 scale-100"
+                        ? "border-red-400"
                         : "border-transparent hover:shadow-xl scale-[0.98]"
                   }`}
                 >
@@ -639,16 +675,14 @@ export function PlacesScreen() {
                     <div className="absolute top-2 left-2 z-10 w-5 h-5 bg-black/60 backdrop-blur-sm text-white rounded-full flex items-center justify-center text-xs font-bold border border-white/20">
                       {index + 1}
                     </div>
-
                     <img
                       src={
-                        poi.image ||
+                        poi.image ??
                         "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800"
                       }
                       alt={poi.name}
                       className="w-20 h-20 rounded-xl object-cover shrink-0"
                     />
-
                     <div className="flex flex-col justify-center flex-1 overflow-hidden pr-8">
                       <h3
                         className={`font-semibold text-sm line-clamp-2 ${isThisCardPlaying ? "text-red-500" : "text-gray-900"}`}
@@ -660,9 +694,13 @@ export function PlacesScreen() {
                         <span>{formatDistance(poi.distance)}</span>
                       </div>
                     </div>
-
                     <button
-                      onClick={handlePlayClick}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        isThisCardPlaying
+                          ? togglePlayPause()
+                          : jumpToPoi(index);
+                      }}
                       className={`absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-colors ${
                         isCurrentlyPlaying
                           ? "bg-red-50 text-red-500 hover:bg-red-100"

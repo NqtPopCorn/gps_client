@@ -50,29 +50,28 @@ self.addEventListener("fetch", (event) => {
   // Chỉ xử lý GET request
   if (request.method !== "GET") return;
 
-  // 1. API Request → Network-first, fallback về IDB nếu offline
+  // 1. API Request -> Network-first, fallback về IDB nếu offline
   if (url.pathname.startsWith(API_BASE)) {
     event.respondWith(handleApiRequest(request, url));
     return;
   }
 
-  // 2. Media Request (image/audio) → Cache-first, fallback về network
-  // /\.(jpg|jpeg|png|webp|gif|mp3|wav|ogg|m4a)(\?.*)?$/.test(url.pathname)
-  const isMedia =
-    /\.(jpg|jpeg|png|webp|gif|mp3|wav|ogg|m4a)(\?.*)?$/.test(url.pathname) ||
-    url.pathname.startsWith("/media/") ||
-    url.pathname.startsWith("/uploads/");
+  // 2. Media Request (image/audio) -> Cache-first, fallback về network
+  // const isMedia =
+  //   /\.(jpg|jpeg|png|webp|gif|mp3|wav|ogg|m4a)(\?.*)?$/.test(url.pathname) ||
+  //   url.pathname.startsWith("/media/") ||
+  //   url.pathname.startsWith("/uploads/");
 
-  if (isMedia) {
-    event.respondWith(handleMediaRequest(request));
-    return;
-  }
+  // if (isMedia) {
+  //   event.respondWith(handleMediaRequest(request));
+  //   return;
+  // }
 });
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 /**
- * API Handler: Network-first → fallback IDB (offline).
+ * API Handler: Network-first -> fallback IDB (offline).
  * Áp dụng cho /api/tours/{id} và /api/pois/{id}.
  */
 async function handleApiRequest(request: Request, url: URL): Promise<Response> {
@@ -114,31 +113,31 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
 }
 
 /**
- * Media Handler: Cache-first → fallback network → lưu vào cache nếu thành công.
+ * Media Handler: Cache-first => fallback network => lưu vào cache nếu thành công.
  * Áp dụng cho file ảnh và audio.
  */
-async function handleMediaRequest(request: Request): Promise<Response> {
-  const cache = await caches.open(CACHE_NAME);
+// async function handleMediaRequest(request: Request): Promise<Response> {
+//   const cache = await caches.open(CACHE_NAME);
 
-  // Tìm trong cache trước
-  const cached = await cache.match(request);
-  if (cached) return cached;
+//   // Tìm trong cache trước
+//   const cached = await cache.match(request);
+//   if (cached) return cached;
 
-  try {
-    // Không có cache → gọi network
-    const networkResponse = await fetch(request);
+//   try {
+//     // Không có cache => gọi network
+//     // const networkResponse = await fetch(request);
 
-    // Lưu vào cache để dùng lần sau (chỉ lưu response thành công)
-    if (networkResponse.ok) {
-      cache.put(request, networkResponse.clone());
-    }
+//     // Lưu vào cache để dùng lần sau (chỉ lưu response thành công)
+//     // if (networkResponse.ok) {
+//     //   cache.put(request, networkResponse.clone());
+//     // }
 
-    return networkResponse;
-  } catch {
-    // Offline và không có cache
-    return new Response("Media unavailable offline.", { status: 503 });
-  }
-}
+//     return networkResponse;
+//   } catch {
+//     // Offline và không có cache
+//     return new Response("Media unavailable offline.", { status: 503 });
+//   }
+// }
 
 // ─── IDB Helper (dùng trong SW context) ──────────────────────────────────────
 

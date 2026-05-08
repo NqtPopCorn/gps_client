@@ -20,7 +20,7 @@ import {
   TourPlayerProvider,
   useTourPlayer,
 } from "./contexts/TourPlayerContext";
-import { SettingsProvider } from "./contexts/SettingsContext";
+import { SettingsProvider, useSettings } from "./contexts/SettingsContext";
 import { I18nProvider } from "./contexts/I18nContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LoginScreen } from "./screens/LoginScreen";
@@ -29,6 +29,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { OfflineScreen } from "./screens/OfflineScreen";
 import { ToastContainer } from "react-toastify";
 import { GPSAutoPlayProvider } from "./contexts/GPSAutoPlayContext";
+import { useHeartbeat } from "./hooks/useHeartbeat";
+import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 
 function AppContent() {
   const [isActivated, setIsActivated] = useState<boolean>(true);
@@ -36,6 +38,8 @@ function AppContent() {
   // Hooks của React Router
   const navigate = useNavigate();
   const location = useLocation();
+
+  const { settings } = useSettings();
 
   const handleActivate = () => {
     setIsActivated(true);
@@ -67,7 +71,7 @@ function AppContent() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full max-w-md mx-auto bg-gray-50 overflow-hidden relative shadow-2xl">
+    <div className="flex flex-col h-dvh w-full max-w-md mx-auto bg-gray-50 overflow-hidden relative shadow-2xl">
       <div className="flex-1 overflow-hidden relative">
         <Routes>
           <Route path="/" element={<TourListScreen />} />
@@ -108,38 +112,48 @@ const queryClient = new QueryClient({
 
 // Bọc toàn bộ App trong Router
 export default function App() {
+  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
+
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
         <I18nProvider>
-          <TourPlayerProvider>
-            <GPSAutoPlayProvider>
-              <Router>
-                <AuthProvider>
-                  <AppContent />
-                  <ToastContainer
-                    position="top-center"
-                    autoClose={2500}
-                    hideProgressBar
-                    newestOnTop
-                    closeOnClick
-                    pauseOnFocusLoss={false}
-                    pauseOnHover={false}
-                    draggable
-                    draggablePercent={30}
-                    theme="dark"
-                    toastClassName="!rounded-xl !px-4 !py-3 !text-sm top-4"
-                    style={{
-                      width: "100%",
-                      maxWidth: "420px",
-                      margin: "0 auto",
-                      top: "env(safe-area-inset-top)", // 🔥 tránh notch iPhone
-                    }}
-                  />
-                </AuthProvider>
-              </Router>
-            </GPSAutoPlayProvider>
-          </TourPlayerProvider>
+          <PayPalScriptProvider
+            options={{
+              clientId: paypalClientId,
+              currency: "USD", // Sandbox thường không hỗ trợ VND — backend tự convert
+              intent: "capture",
+            }}
+          >
+            <TourPlayerProvider>
+              <GPSAutoPlayProvider>
+                <Router>
+                  <AuthProvider>
+                    <AppContent />
+                    <ToastContainer
+                      position="top-center"
+                      autoClose={2500}
+                      hideProgressBar
+                      newestOnTop
+                      closeOnClick
+                      pauseOnFocusLoss={false}
+                      pauseOnHover={false}
+                      draggable
+                      draggablePercent={30}
+                      theme="dark"
+                      toastClassName="!rounded-xl !px-4 !py-3 !text-sm top-4"
+                      style={{
+                        width: "100%",
+                        maxWidth: "420px",
+                        margin: "0 auto",
+                        top: "env(safe-area-inset-top)", // 🔥 tránh notch iPhone
+                      }}
+                    />
+                  </AuthProvider>
+                </Router>
+              </GPSAutoPlayProvider>
+            </TourPlayerProvider>
+          </PayPalScriptProvider>
         </I18nProvider>
       </SettingsProvider>
     </QueryClientProvider>

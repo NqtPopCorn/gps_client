@@ -5,6 +5,9 @@ import App from "./App.tsx";
 import "./index.css";
 //@ts-ignore
 import "leaflet/dist/leaflet.css";
+import { initDeviceId } from "./lib/api.ts";
+
+await initDeviceId();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

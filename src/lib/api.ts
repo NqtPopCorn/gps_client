@@ -4,12 +4,14 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from "axios";
+import FingerprintJS from "@fingerprintjs/fingerprintjs";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
+export const BASE_API_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
-// @ts-ignore
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "ag_access_token";
+const DEVICE_ID_KEY = "ag_device_id";
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
@@ -19,10 +21,25 @@ export const tokenStorage = {
   clear: (): void => localStorage.removeItem(TOKEN_KEY),
 };
 
+export const deviceIdStorage = {
+  get: (): string | null => localStorage.getItem(DEVICE_ID_KEY),
+  set: (fingerprint: string): void =>
+    localStorage.setItem(DEVICE_ID_KEY, fingerprint),
+  clear: (): void => localStorage.removeItem(DEVICE_ID_KEY),
+};
+
+export async function initDeviceId() {
+  const fp = await FingerprintJS.load();
+  const result = await fp.get();
+  const visitorId = result.visitorId;
+  deviceIdStorage.set(visitorId);
+  return visitorId;
+}
+
 // ─── Axios instance ───────────────────────────────────────────────────────────
 
 const api: AxiosInstance = axios.create({
-  baseURL: BASE_URL,
+  baseURL: BASE_API_URL,
   headers: { "Content-Type": "application/json" },
   timeout: 15_000,
 });
@@ -35,6 +52,8 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    config.headers["X-Device-Id"] = deviceIdStorage.get();
     return config;
   },
   (error) => Promise.reject(error),

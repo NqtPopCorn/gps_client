@@ -24,8 +24,8 @@ class GPSService {
   constructor(config: GPSServiceConfig = {}) {
     this.config = {
       enableHighAccuracy: config.enableHighAccuracy ?? true,
-      timeout: config.timeout ?? 30000,
-      maximumAge: config.maximumAge ?? 0,
+      timeout: config.timeout ?? 30000, // doi 30s cho nguoi dung accept track
+      maximumAge: config.maximumAge ?? 0, // TTL cua cache (mac dinh Geolocation luu cache)
     };
   }
 

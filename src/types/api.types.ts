@@ -116,6 +116,7 @@ export interface POI {
   radius: number;
 }
 
+/** Legacy nearby params (lat/lng/radius) – kept for reference */
 export interface NearbyPOIParams {
   lat: number;
   lng: number;
@@ -123,6 +124,20 @@ export interface NearbyPOIParams {
   radius?: number;
   limit?: number;
 }
+
+/**
+ * Bounding-box + zoom params for the new /api/pois/nearby endpoint.
+ * Derived from the current Leaflet map viewport.
+ */
+export interface NearbyBBoxParams {
+  min_lat: number;
+  min_lng: number;
+  max_lat: number;
+  max_lng: number;
+  zoom: number;
+  lang: LangCode;
+}
+
 export interface SearchPOIParams {
   name?: string;
   lang?: LangCode;
@@ -180,6 +195,7 @@ export interface Tour {
 export interface TourDetail extends Tour {
   /** Ordered list of tour points with embedded POI data. Read-only. */
   pois: TourPointDetailInline[];
+  can_start: boolean;
 }
 
 export interface TourActivationResponse {
