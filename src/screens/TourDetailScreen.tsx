@@ -34,72 +34,11 @@ interface PayPalSectionProps {
   onSuccess: () => void;
 }
 
-const MAX_POLL_ATTEMPTS = 5;
-
 function PayPalSection({ tourId, onSuccess }: PayPalSectionProps) {
   const [payState, setPayState] = useState<PayState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const invoiceIdRef = useRef<string | null>(null);
   const [{ isPending }] = usePayPalScriptReducer();
-
-  // Dùng để huỷ polling nếu user thoát khỏi màn hình
-  const isMounted = useRef(true);
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  const pollPaymentStatus = useCallback(
-    async (invoiceId: string, attempt: number = 0) => {
-      // Dừng nếu component đã unmount
-      if (!isMounted.current) return;
-
-      // Dừng nếu vượt quá số lần thử
-      if (attempt >= MAX_POLL_ATTEMPTS) {
-        setPayState("error");
-        setErrorMsg(
-          "Thời gian xác nhận quá lâu. Vui lòng kiểm tra lại lịch sử giao dịch sau.",
-        );
-        return;
-      }
-
-      try {
-        const res = await paymentService.checkInvoiceStatus(invoiceId);
-
-        if (!isMounted.current) return;
-
-        if (res.status === "SUCCESS") {
-          setPayState("success");
-          toast.success("Thanh toán thành công! Đang bắt đầu tour...");
-          setTimeout(onSuccess, 1000);
-          return; // Kết thúc polling
-        }
-
-        if (res.status === "FAILED") {
-          setPayState("error");
-          setErrorMsg("Giao dịch đã bị từ chối từ hệ thống.");
-          return; // Kết thúc polling
-        }
-
-        // Nếu vẫn "PENDING", tiếp tục polling với exponential backoff
-        const nextDelay = Math.pow(2, attempt) * 1000; // Lần lượt: 1000, 2000, 4000, 8000...
-
-        setTimeout(() => {
-          pollPaymentStatus(invoiceId, attempt + 1);
-        }, nextDelay);
-      } catch (err) {
-        // Bỏ qua lỗi mạng chập chờn, vẫn tiếp tục poll
-        const nextDelay = Math.pow(2, attempt) * 1000;
-        setTimeout(() => {
-          pollPaymentStatus(invoiceId, attempt + 1);
-        }, nextDelay);
-      }
-    },
-    [onSuccess],
-  );
 
   const handleCreateOrder = useCallback(async () => {
     setErrorMsg("");
@@ -120,18 +59,15 @@ function PayPalSection({ tourId, onSuccess }: PayPalSectionProps) {
   const handleApprove = useCallback(
     async (data: { orderID?: string }) => {
       if (!data.orderID) return;
-      setPayState("paying"); // UI hiển thị đang xử lý
+      setPayState("paying");
       try {
-        // Gửi yêu cầu capture lên backend của bạn
         await paymentService.capturePayPalOrder(
           data.orderID,
           invoiceIdRef.current ?? "",
         );
-
-        // Thay vì báo SUCCESS ngay, bắt đầu tiến trình Polling để chờ backend update Database
-        if (invoiceIdRef.current) {
-          pollPaymentStatus(invoiceIdRef.current, 0);
-        }
+        setPayState("success");
+        toast.success("Thanh toán thành công! Đang bắt đầu tour...");
+        setTimeout(onSuccess, 1000);
       } catch (err: any) {
         const msg =
           err?.message || "Capture thất bại. Vui lòng liên hệ hỗ trợ.";
@@ -139,7 +75,7 @@ function PayPalSection({ tourId, onSuccess }: PayPalSectionProps) {
         setPayState("error");
       }
     },
-    [pollPaymentStatus], // Đưa pollPaymentStatus vào dependency
+    [onSuccess],
   );
 
   if (payState === "success") {
