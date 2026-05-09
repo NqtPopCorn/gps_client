@@ -201,8 +201,7 @@ export interface TourDetail extends Tour {
 export interface TourActivationResponse {
   tour_id: string | number;
   code: string;
-  expires_in: number;
-  expired_at: string;
+  device_id: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
